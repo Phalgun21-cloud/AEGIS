@@ -1,0 +1,27 @@
+# env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+.next/
+out/
+
+# misc
+.DS_Store
+*.log
+
+# vault keys (never commit)
+backend/keys/
+backend/scripts/*.local.sql

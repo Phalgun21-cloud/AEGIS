@@ -1,0 +1,10 @@
+line-length = 100
+target-version = "py312"
+
+[lint.flake8-bugbear]
+# FastAPI's dependency-injection idiom: these calls in default arguments are intended.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Query",
+]
