@@ -1,1 +1,4 @@
 * text=auto eol=lf
+# Windows batch files must keep CRLF or cmd.exe mis-parses labels/goto.
+*.cmd text eol=crlf
+*.bat text eol=crlf

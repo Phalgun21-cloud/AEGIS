@@ -29,7 +29,7 @@ start "AEGIS servers (close this window to stop)" cmd /k npm run dev
 
 rem Wait until the API answers (up to ~60s), then open the app.
 for /l %%i in (1,1,30) do (
-  timeout /t 2 /nobreak >nul
+  ping -n 3 127.0.0.1 >nul
   curl -s -o nul http://localhost:8000/health && goto :open
 )
 echo The API did not start. Check the "AEGIS servers" window for the error.
@@ -37,7 +37,7 @@ pause
 exit /b 1
 
 :open
-timeout /t 4 /nobreak >nul
+ping -n 5 127.0.0.1 >nul
 start "" http://localhost:3000/login
 exit /b 0
 

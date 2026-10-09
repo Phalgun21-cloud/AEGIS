@@ -117,3 +117,13 @@ async def run_scheduler(stop: asyncio.Event) -> None:
 def _tick() -> None:
     with SessionLocal() as db:
         advance_all(db)
+    # Optional Phase 4 anchoring; kept separate so a chain outage never blocks a release.
+    from app.services.anchor import get_client, maybe_anchor
+
+    client = get_client()
+    if client is not None:
+        try:
+            with SessionLocal() as db:
+                maybe_anchor(db, client)
+        except Exception:
+            log.exception("audit anchoring failed")

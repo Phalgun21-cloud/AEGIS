@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { AnchorsPanel } from "@/components/admin/AnchorsPanel";
 import { Alert, Button, Input, PageHeader, Table, Td } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { fmtDateTime, shortHash } from "@/lib/format";
@@ -79,6 +80,7 @@ export default function AuditPage() {
           )}
         </div>
       )}
+      <AnchorsPanel />
       <form
         className="mb-4 flex gap-2"
         onSubmit={(e) => {

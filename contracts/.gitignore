@@ -1,0 +1,10 @@
+node_modules/
+artifacts/
+cache/
+coverage/
+coverage.json
+typechain-types/
+.env
+# Local chain deployments are throwaway; testnet deployment records are kept.
+deployments/localhost.json
+deployments/hardhat.json

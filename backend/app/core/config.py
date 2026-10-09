@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     duplicate_threshold: float = 0.85
     max_image_bytes: int = 2 * 1024 * 1024
 
+    # Optional blockchain audit anchoring (Phase 4). Testnet or local chain only.
+    anchor_enabled: bool = False
+    anchor_rpc_url: str = ""  # e.g. http://127.0.0.1:8545 (Hardhat) or a Sepolia RPC URL
+    anchor_contract_address: str = ""
+    anchor_private_key: str = ""  # key of the account that deployed/owns the contract
+    anchor_chain_id: int = 0  # 0 = ask the node
+    # Anchor at most this often, and only when critical events happened since the last anchor.
+    anchor_min_interval_seconds: int = 60
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
@@ -46,6 +55,12 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must be set to a random value of 32+ chars")
             if not self.vault_private_key:
                 raise ValueError("VAULT_PRIVATE_KEY must be set in production")
+        if self.anchor_enabled and not (
+            self.anchor_rpc_url and self.anchor_contract_address and self.anchor_private_key
+        ):
+            raise ValueError(
+                "ANCHOR_ENABLED needs ANCHOR_RPC_URL, ANCHOR_CONTRACT_ADDRESS and ANCHOR_PRIVATE_KEY"
+            )
         return self
 
 

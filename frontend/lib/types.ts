@@ -228,3 +228,35 @@ export type Receipt = {
   auto_submitted: boolean;
   answers_sha256: string;
 };
+
+export type BlockchainAnchor = {
+  id: number;
+  audit_log_id: number;
+  entry_hash: string;
+  status: "pending" | "confirmed" | "failed";
+  chain_id: number | null;
+  contract_address: string | null;
+  tx_hash: string | null;
+  block_number: number | null;
+  onchain_index: number | null;
+  error: string | null;
+  created_at: string;
+  confirmed_at: string | null;
+};
+
+export type AnchorsOverview = {
+  enabled: boolean;
+  chain_id: number | null;
+  contract_address: string | null;
+  head_audit_id: number | null;
+  last_anchored_audit_id: number | null;
+  anchors: BlockchainAnchor[];
+};
+
+export type AnchorVerification = {
+  valid: boolean;
+  reason?: string;
+  checks?: Record<string, boolean>;
+  onchain?: { head_hash: string; audit_entry_id: number; anchored_at: number };
+  entries_covered?: number;
+};

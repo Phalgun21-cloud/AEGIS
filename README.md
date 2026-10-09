@@ -12,7 +12,7 @@ submission → audit & analytics.
 |---|---|
 | `frontend/` | Next.js + TypeScript + Tailwind |
 | `backend/` | FastAPI + SQLAlchemy + Alembic (MySQL) |
-| `contracts/` | Hardhat audit-anchoring contract (Phase 4, not yet created) |
+| `contracts/` | Hardhat `AuditAnchor` contract for optional blockchain audit anchoring |
 
 ## Run locally (Windows PowerShell)
 
@@ -120,6 +120,53 @@ opens another role's pages is redirected back to their own.
 The session token is kept in `sessionStorage`, so it is cleared when the tab closes.
 Moving it to an httpOnly cookie is planned for hardening (Phase 5).
 
+## Blockchain audit anchoring (Phase 4, optional)
+
+Each audit entry's hash covers the previous one, so writing the newest hash to a blockchain
+fixes every earlier entry. After that, even someone with full database access can't
+quietly edit or delete audit history: **Audit Logs → Blockchain anchors → Verify against
+chain** compares the database with the on-chain record. Only hashes go on-chain, never
+question content or personal data. Testnet / local only; the deploy script refuses mainnet.
+
+- **Contract:** `contracts/contracts/AuditAnchor.sol`. Only the owner can write. Entry ids
+  must strictly increase, so a rolled-back or truncated audit log can't be re-anchored.
+- **When it anchors:** the release engine anchors automatically after critical events
+  (question approved, paper generated/discarded/released, submissions, exam closed), at
+  most every `ANCHOR_MIN_INTERVAL_SECONDS`. Admins can also press **Anchor now**.
+- **Before anchoring** it re-verifies the database chain and refuses to anchor tampered
+  data. It also refuses if the contract already holds a newer checkpoint, which means a
+  rolled-back log or a contract shared between environments. Use one contract per
+  environment.
+
+### Try it on a local chain
+
+```powershell
+npm run chain            # terminal 1: local Hardhat blockchain on :8545 (keep it open)
+npm run deploy:local     # terminal 2: deploys AuditAnchor and prints its address
+```
+
+Then in `backend/.env` set `ANCHOR_ENABLED=true`, `ANCHOR_RPC_URL=http://127.0.0.1:8545`,
+`ANCHOR_CONTRACT_ADDRESS=<printed address>` and `ANCHOR_PRIVATE_KEY=` the key of Hardhat
+**Account #0** shown by `npm run chain` (a public dev key that only works on the local
+chain). Restart AEGIS. The local chain forgets everything when stopped, so redeploy each
+time.
+
+### Sepolia testnet
+
+1. Create a **test-only** wallet, for example a new MetaMask account. Never use one
+   holding real funds.
+2. Get free Sepolia ETH from a faucet, and a Sepolia RPC URL from a provider such as
+   Alchemy or Infura.
+3. Copy `contracts/.env.example` to `contracts/.env`, then fill in `SEPOLIA_RPC_URL` and
+   `DEPLOYER_PRIVATE_KEY`.
+4. Run `npm run deploy:sepolia`. It writes `contracts/deployments/sepolia.json`.
+5. In `backend/.env` set `ANCHOR_ENABLED=true`, `ANCHOR_RPC_URL=<Sepolia RPC URL>`,
+   `ANCHOR_CONTRACT_ADDRESS=<address>` and `ANCHOR_PRIVATE_KEY=<same test wallet key>`.
+   Each anchor costs a little test ETH.
+
+Checks: `npm run test:contracts` (contract tests); the backend tests cover anchoring with
+an in-memory chain.
+
 ## Status
 
 - Phase 1 (foundation): complete.
@@ -130,4 +177,8 @@ Moving it to an httpOnly cookie is planned for hardening (Phase 5).
 - Phase 3 (frontend): complete. Role-based pages for Admin, Author, Reviewer and
   Candidate, checked end to end in a browser (author → reject → fix → approve →
   blueprint → generate → release → attempt → submit / auto-submit → results → audit).
-- Next: Phase 4, blockchain audit anchoring (Hardhat + Web3.py, testnet only).
+- Phase 4 (blockchain audit, optional): complete. AuditAnchor contract with 7 tests,
+  Web3.py anchoring with automatic triggers and verification, admin UI panel; verified
+  on a local Hardhat chain, including tamper detection. Sepolia deployment needs your
+  own test wallet and RPC URL (see above).
+- Next: Phase 5, hardening and testing.

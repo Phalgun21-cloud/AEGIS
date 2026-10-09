@@ -72,10 +72,14 @@ class ChainReport:
     head_hash: str | None = None
 
 
-def verify_chain(db: Session) -> ChainReport:
+def verify_chain(db: Session, up_to_id: int | None = None) -> ChainReport:
+    """Recompute the chain from the start (optionally only up to entry `up_to_id`)."""
     prev = GENESIS
     count = 0
-    for entry in db.execute(select(AuditLog).order_by(AuditLog.id)).scalars():
+    q = select(AuditLog).order_by(AuditLog.id)
+    if up_to_id is not None:
+        q = q.where(AuditLog.id <= up_to_id)
+    for entry in db.execute(q).scalars():
         count += 1
         if entry.prev_hash != prev or entry.entry_hash != _entry_hash(prev, entry):
             return ChainReport(False, count, entry.id, prev)
