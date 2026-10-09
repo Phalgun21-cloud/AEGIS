@@ -8,6 +8,7 @@ and makes no claim of psychometric equivalence between papers.
 """
 
 import random
+import threading
 from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
@@ -40,14 +41,26 @@ class GenerationResult:
     pool_size: int = 0
 
 
+_sklearn_lock = threading.Lock()
+
+
+def load_sklearn():
+    """Import scikit-learn (lazily: it adds seconds to API startup).
+
+    Serialised with a lock: two threads importing scikit-learn at the same moment can
+    deadlock inside Python's import machinery (the startup warm-up and a first request).
+    """
+    with _sklearn_lock:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+    return TfidfVectorizer, cosine_similarity
+
+
 def similarity_matrix(texts: list[str]):
     """Pairwise TF-IDF cosine similarity, or None when there's nothing to compare."""
     if len(texts) < 2:
         return None
-    # Imported lazily: scikit-learn adds several seconds to API startup.
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-
+    TfidfVectorizer, cosine_similarity = load_sklearn()
     try:
         tfidf = TfidfVectorizer(
             ngram_range=(1, 2),

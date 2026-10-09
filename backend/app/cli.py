@@ -27,6 +27,9 @@ def create_user(args: argparse.Namespace) -> int:
     if len(password) < 10:
         print("Password too short.", file=sys.stderr)
         return 1
+    if len(password.encode()) > 72:
+        print("Password too long (bcrypt uses at most 72 bytes).", file=sys.stderr)
+        return 1
     if getpass.getpass("Repeat password: ") != password:
         print("Passwords do not match.", file=sys.stderr)
         return 1

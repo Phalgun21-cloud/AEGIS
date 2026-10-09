@@ -3,14 +3,14 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { api, getToken, setToken } from "@/lib/api";
+import { api, setSessionActive } from "@/lib/api";
 import type { Role, User } from "@/lib/types";
 
 type AuthState = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -27,19 +27,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // The session cookie is httpOnly, so ask the API who (if anyone) is signed in.
   useEffect(() => {
-    if (!getToken()) {
-      setLoading(false);
-      return;
-    }
     api<User>("/auth/me")
-      .then(setUser)
-      .catch(() => setToken(null))
+      .then((me) => {
+        setSessionActive(true);
+        setUser(me);
+      })
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
-  const logout = useCallback(() => {
-    setToken(null);
+  const logout = useCallback(async () => {
+    setSessionActive(false);
+    await api("/auth/logout", { method: "POST" }).catch(() => {});
     setUser(null);
     router.replace("/login");
   }, [router]);
@@ -55,9 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const form = new URLSearchParams({ username: email, password });
-    const res = await api<{ access_token: string }>("/auth/login", { form });
-    setToken(res.access_token);
+    await api("/auth/login", { form }); // sets the session cookie
     const me = await api<User>("/auth/me");
+    setSessionActive(true);
     setUser(me);
     return me;
   }, []);

@@ -1,9 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import (
+    CSRF_HEADER,
+    clear_session_cookie,
+    get_current_user,
+    require_admin,
+    set_session_cookie,
+)
+from app.core.config import get_settings
+from app.core.ratelimit import SlidingWindowLimiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models import Role, User
@@ -17,18 +25,64 @@ router = APIRouter(tags=["auth"])
 _DUMMY_HASH = hash_password("aegis-timing-equaliser")
 
 
+# Every attempt from one IP (slows password spraying across many accounts)...
+login_ip_limiter = SlidingWindowLimiter(
+    lambda: get_settings().login_attempts_per_ip_per_minute, lambda: 60
+)
+# ...and failed attempts per IP + account (slows guessing one password). Keyed on the IP too,
+# so a stranger can't lock a candidate out of their exam by failing logins on purpose.
+login_failure_limiter = SlidingWindowLimiter(
+    lambda: get_settings().login_failures_per_account,
+    lambda: get_settings().login_failure_window_minutes * 60,
+)
+
+
+def _too_many(retry_after: int) -> HTTPException:
+    return HTTPException(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        f"Too many sign-in attempts. Try again in {retry_after} seconds.",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 @router.post("/auth/login", response_model=Token)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> Token:
-    email = form.username.strip().lower()
+def login(
+    request: Request,
+    response: Response,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+) -> Token:
+    email = form.username.strip().lower()[:320]
+    ip = request.client.host if request.client else "unknown"
+    if wait := login_ip_limiter.hit(ip):
+        raise _too_many(wait)
+    if wait := login_failure_limiter.retry_after((ip, email)):
+        raise _too_many(wait)
+
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     ok = verify_password(form.password, user.password_hash if user else _DUMMY_HASH)
     if user is None or not ok or not user.is_active:
+        login_failure_limiter.hit((ip, email))
         audit.record(db, "auth.login_failed", details={"email": email})
         db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+    login_failure_limiter.reset((ip, email))
     audit.record(db, "auth.login", actor=user, entity_type="user", entity_id=user.id)
     db.commit()
+    # The web app (which sends the CSRF header) gets an httpOnly cookie. Requiring the header
+    # here too stops another site from silently signing a browser into some other account.
+    # The token itself then stays out of reach of page scripts.
+    if request.headers.get(CSRF_HEADER) == "1":
+        set_session_cookie(response, user)
+        return Token(access_token=None, role=user.role)
     return Token(access_token=create_access_token(user.id, user.role.value), role=user.role)
+
+
+@router.post("/auth/logout", status_code=204)
+def logout() -> Response:
+    response = Response(status_code=204)
+    clear_session_cookie(response)
+    return response
 
 
 @router.get("/auth/me", response_model=UserOut)

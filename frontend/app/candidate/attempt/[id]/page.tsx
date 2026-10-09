@@ -11,6 +11,7 @@ import type { Attempt, Receipt, SaveAck } from "@/lib/types";
 
 const SAVE_DEBOUNCE_MS = 700;
 const RETRY_MS = 5000;
+const HEARTBEAT_MS = 5 * 60 * 1000; // well inside half the 30-minute session lifetime
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -89,6 +90,8 @@ export default function AttemptPage() {
       }
       pending.current = { ...batch, ...pending.current };
       setSaveState("error");
+      // Retries itself later; by the time the timer fires, `flush` is defined.
+      // eslint-disable-next-line react-hooks/immutability
       saveTimer.current = setTimeout(() => void flush(), RETRY_MS);
     }
   }, [id, submit]);
@@ -118,6 +121,21 @@ export default function AttemptPage() {
     }, 500);
     return () => clearInterval(t);
   }, [attempt, submit]);
+
+  // Keep-alive: keeps the sign-in session renewed while the candidate reads without answering,
+  // and re-syncs the timer with the server clock.
+  useEffect(() => {
+    if (!attempt || attempt.submitted_at) return;
+    const t = setInterval(() => {
+      if (finished.current) return;
+      api<Attempt>(`/candidate/attempts/${id}`)
+        .then((a) => {
+          deadlineMs.current = Date.now() + a.remaining_seconds * 1000;
+        })
+        .catch(() => {});
+    }, HEARTBEAT_MS);
+    return () => clearInterval(t);
+  }, [attempt, id]);
 
   // Warn before leaving with unsaved answers.
   useEffect(() => {

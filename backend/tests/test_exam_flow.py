@@ -261,3 +261,58 @@ def test_scheduler_tick_releases_and_closes(client, db, world, clock):
     advance_all(db, clock.now)
     db.expire_all()
     assert db.get(Exam, eid).status == ExamStatus.CLOSED
+
+
+# ---------- time-lock edge cases (Phase 5) ----------
+
+
+def test_paper_opens_exactly_at_start_not_a_second_before(client, db, world, clock):
+    from datetime import timedelta
+
+    w = world
+    eid = _ready_exam(client, w, clock)
+    start = db.get(Exam, eid).start_at
+    clock.now = start - timedelta(seconds=1)
+    r = client.post(f"/candidate/exams/{eid}/start", headers=w["c1_h"])
+    assert r.status_code == 409 and "questions" not in r.text
+    with pytest.raises(PaperNotReleased):
+        open_paper(db.get(Exam, eid), clock.now)
+    clock.now = start
+    r = client.post(f"/candidate/exams/{eid}/start", headers=w["c1_h"])
+    assert r.status_code == 200 and len(r.json()["questions"]) == 4
+
+
+def test_no_route_leaks_sealed_content_before_release(client, db, world, clock):
+    """Before release, nothing an admin, author or candidate can fetch contains a stem."""
+    w = world
+    eid = _ready_exam(client, w, clock)
+    stems = [s[:20] for s in STEMS]
+    responses = [
+        client.get(f"/exams/{eid}", headers=w["admin_h"]),
+        client.get(f"/exams/{eid}/manifest", headers=w["admin_h"]),
+        client.get(f"/exams/{eid}/monitor", headers=w["admin_h"]),
+        client.get("/bank", headers=w["admin_h"]),
+        client.get("/questions/mine", headers=w["author_h"]),
+        client.get("/candidate/exams", headers=w["c1_h"]),
+        client.post(f"/candidate/exams/{eid}/start", headers=w["c1_h"]),
+    ] + [client.get(f"/questions/{q}", headers=w["author_h"]) for q in w["qids"]]
+    for r in responses:
+        assert not any(s in r.text for s in stems), r.request.url
+
+
+def test_sealed_blobs_are_bound_to_their_record(client, db, world, clock):
+    """Copying one exam's sealed paper onto another exam doesn't decrypt (AES-GCM AAD)."""
+    from app.services.vault import VaultError
+
+    w = world
+    a, b = _ready_exam(client, w, clock), _ready_exam(client, w, clock)
+    ea, eb = db.get(Exam, a), db.get(Exam, b)
+    eb.paper_ciphertext, eb.paper_nonce, eb.paper_wrapped_key = (
+        ea.paper_ciphertext,
+        ea.paper_nonce,
+        ea.paper_wrapped_key,
+    )
+    clock.advance(minutes=61)
+    assert open_paper(ea, clock.now)["questions"]
+    with pytest.raises(VaultError):
+        open_paper(eb, clock.now)
