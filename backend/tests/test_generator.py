@@ -70,3 +70,10 @@ def test_scarce_rows_are_filled_first():
     exam = _exam(("Algebra", Difficulty.EASY, 1, None), ("Algebra", Difficulty.EASY, 1, 2))
     res = select_questions(exam, pool, 0.85, random.Random(0))
     assert not res.shortfalls
+
+
+def test_numeric_variants_are_not_duplicates():
+    # Same wording, different numbers: distinct maths questions, both selectable.
+    pool = [_pq(1, "Solve for x: 2x + 3 = 11"), _pq(2, "Solve for x: 2x + 5 = 13")]
+    res = select_questions(_exam(("Algebra", Difficulty.EASY, 2, None)), pool, 0.85)
+    assert not res.shortfalls and res.duplicates_skipped == 0

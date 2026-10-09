@@ -40,8 +40,25 @@ cd frontend
 copy .env.example .env.local
 npm install
 npm run dev
-# http://localhost:3000
+# http://localhost:3000   (single link: the frontend proxies /api/* and the
+#                          monitor WebSocket to the backend; API docs at /api/docs)
 ```
+
+### Everyday start (one command)
+
+Easiest: **double-click `start-aegis.cmd`** in the project folder. It opens a window running
+the API and web app (close that window to stop them) and opens the sign-in page.
+
+Or, after the one-time setup above, start everything from the project root:
+
+```powershell
+npm install        # first time only (installs the launcher)
+npm run dev        # applies migrations, starts API :8000 and web app :3000 together
+```
+
+Open http://localhost:3000. If the landing page shows **API unreachable**, the backend
+isn't running. Start it with `npm run dev`, not `npm run dev` inside `frontend/`, which
+only starts the web app.
 
 The vault key is generated at `backend/keys/vault_private.pem` on first use in development.
 Back it up: without it, approved questions and sealed papers cannot be decrypted.
@@ -88,6 +105,21 @@ its role. Interactive docs are at `/docs`.
   hash includes the previous entry's hash. `GET /audit/verify` (or
   `python -m app.cli verify-audit`) detects any edited or deleted row.
 
+## Frontend (Phase 3)
+
+One origin, http://localhost:3000. Sign-in sends each role to its own area. A user who
+opens another role's pages is redirected back to their own.
+
+| Role | Pages |
+|---|---|
+| Admin | Dashboard; Exams (create, blueprint with live bank counts, AI paper generator with shortfall report, candidate enrolment, schedule, live monitor over WebSocket with polling fallback, results); Question Bank (metadata and coverage only); Users; Audit Logs (filter, paging, chain verification) |
+| Author | My Questions (filtered by status, reviewer feedback shown), editor with options, answer key, explanation and image upload; save draft / submit |
+| Reviewer | Queue with full question, marked answer, image, TF-IDF duplicate check; approve, or reject with feedback |
+| Candidate | My Exams; instructions with countdown to release; exam screen with server-synced timer, question navigator, debounced auto-save with retry, submit confirmation, auto-submit at time-up; SHA-256 receipt |
+
+The session token is kept in `sessionStorage`, so it is cleared when the tab closes.
+Moving it to an httpOnly cookie is planned for hardening (Phase 5).
+
 ## Status
 
 - Phase 1 (foundation): complete.
@@ -95,4 +127,7 @@ its role. Interactive docs are at `/docs`.
   review with duplicate check, vault crypto, exams and blueprints, AI-assisted generation,
   release engine, candidate service, hash-chained audit and a WebSocket live monitor.
   40 automated tests.
-- Next: Phase 3, the role-based frontend pages.
+- Phase 3 (frontend): complete. Role-based pages for Admin, Author, Reviewer and
+  Candidate, checked end to end in a browser (author → reject → fix → approve →
+  blueprint → generate → release → attempt → submit / auto-submit → results → audit).
+- Next: Phase 4, blockchain audit anchoring (Hardhat + Web3.py, testnet only).

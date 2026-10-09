@@ -1,9 +1,10 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.timeutil import utcnow
 from app.db import Base
 from app.models.types import Blob, enum_values
 
@@ -55,10 +56,8 @@ class Question(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     vault: Mapped["VaultItem | None"] = relationship(back_populates="question", uselist=False)
 
@@ -71,6 +70,6 @@ class VaultItem(Base):
     nonce: Mapped[bytes] = mapped_column(Blob)
     wrapped_key: Mapped[bytes] = mapped_column(Blob)
     content_sha256: Mapped[str] = mapped_column(String(64))
-    sealed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    sealed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     question: Mapped[Question] = relationship(back_populates="vault")

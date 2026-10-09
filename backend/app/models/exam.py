@@ -11,10 +11,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.timeutil import utcnow
 from app.db import Base
 from app.models.question import Difficulty
 from app.models.types import Blob, enum_values
@@ -41,7 +41,7 @@ class Exam(Base):
         Enum(ExamStatus, values_callable=enum_values), default=ExamStatus.DRAFT, index=True
     )
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     paper_ciphertext: Mapped[bytes | None] = mapped_column(Blob, nullable=True, deferred=True)
     paper_nonce: Mapped[bytes | None] = mapped_column(Blob, nullable=True)

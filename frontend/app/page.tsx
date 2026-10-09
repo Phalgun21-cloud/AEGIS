@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { fetchHealth } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +37,25 @@ export default async function Home() {
         <Status label="API" ok={api?.status === "ok"} />
         <Status label="Database" ok={db?.database === "up"} />
       </div>
+      {api?.status !== "ok" ? (
+        <p className="max-w-md text-sm text-amber-300/90">
+          The API isn&apos;t running. Double-click{" "}
+          <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono">start-aegis.cmd</code> in the project folder
+          (or run <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono">npm run dev</code> there), then
+          refresh this page.
+        </p>
+      ) : db?.database !== "up" ? (
+        <p className="max-w-md text-sm text-amber-300/90">
+          The API can&apos;t reach MySQL. Check that the MySQL80 service is running and that{" "}
+          <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono">DATABASE_URL</code> in backend/.env is correct.
+        </p>
+      ) : null}
+      <Link
+        href="/login"
+        className="rounded-lg bg-cyan-500 px-6 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-400"
+      >
+        Sign in
+      </Link>
     </main>
   );
 }

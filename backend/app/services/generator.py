@@ -10,8 +10,6 @@ and makes no claim of psychometric equivalence between papers.
 import random
 from dataclasses import dataclass, field
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -46,8 +44,17 @@ def similarity_matrix(texts: list[str]):
     """Pairwise TF-IDF cosine similarity, or None when there's nothing to compare."""
     if len(texts) < 2:
         return None
+    # Imported lazily: scikit-learn adds several seconds to API startup.
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
     try:
-        tfidf = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True).fit_transform(texts)
+        tfidf = TfidfVectorizer(
+            ngram_range=(1, 2),
+            sublinear_tf=True,
+            # Keep 1-character tokens: in maths, "x = 3" and "x = 5" are different questions.
+            token_pattern=r"(?u)\b\w+\b",
+        ).fit_transform(texts)
     except ValueError:  # empty vocabulary
         return None
     return cosine_similarity(tfidf)

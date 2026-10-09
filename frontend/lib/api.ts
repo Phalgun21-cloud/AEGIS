@@ -14,3 +14,117 @@ export async function fetchHealth(path: "/health" | "/health/db"): Promise<Healt
     return null;
   }
 }
+
+// ---------- authenticated client (browser only) ----------
+
+const TOKEN_KEY = "aegis.token";
+
+// sessionStorage: the token is dropped when the tab closes, and isn't shared across tabs.
+export function getToken(): string | null {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setToken(token: string | null) {
+  try {
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* storage unavailable: session lasts for this page only */
+  }
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public detail: unknown,
+  ) {
+    super(formatDetail(detail) || `Request failed (${status})`);
+  }
+}
+
+function formatDetail(detail: unknown): string {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => {
+        const loc = Array.isArray(d?.loc) ? d.loc.filter((x: unknown) => x !== "body").join(".") : "";
+        return loc ? `${loc}: ${d?.msg}` : String(d?.msg ?? d);
+      })
+      .join("; ");
+  }
+  if (typeof detail === "object" && "message" in detail) {
+    return String((detail as { message: unknown }).message);
+  }
+  return JSON.stringify(detail);
+}
+
+const OFFLINE =
+  "Can't reach the AEGIS server. Make sure it's running (double-click start-aegis.cmd or run `npm run dev` in the project folder), then try again.";
+
+type Options = {
+  method?: string;
+  json?: unknown;
+  form?: FormData | URLSearchParams;
+};
+
+export async function api<T>(path: string, opts: Options = {}): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let body: BodyInit | undefined;
+  if (opts.json !== undefined) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(opts.json);
+  } else if (opts.form) {
+    body = opts.form;
+  }
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: opts.method ?? (body ? "POST" : "GET"),
+      headers,
+      body,
+      cache: "no-store",
+    });
+  } catch {
+    // The web server itself is down (the browser couldn't connect at all).
+    throw new ApiError(0, OFFLINE);
+  }
+  if (res.status === 401 && token) {
+    setToken(null);
+    window.dispatchEvent(new Event("aegis:logout"));
+  }
+  if (!res.ok) {
+    let detail: unknown = null;
+    try {
+      detail = (await res.json()).detail;
+    } catch {
+      /* non-JSON error */
+    }
+    // A bare 5xx with no API error body comes from the /api proxy: the backend is down.
+    if (detail === null && res.status >= 500) detail = OFFLINE;
+    throw new ApiError(res.status, detail);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** Fetches an authenticated binary (e.g. a question image) as an object URL. */
+export async function apiBlobUrl(path: string): Promise<string | null> {
+  const token = getToken();
+  const res = await fetch(`/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return URL.createObjectURL(await res.blob());
+}
+
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}

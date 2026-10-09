@@ -25,3 +25,4 @@ out/
 # vault keys (never commit)
 backend/keys/
 backend/scripts/*.local.sql
+demo-credentials.local.md
