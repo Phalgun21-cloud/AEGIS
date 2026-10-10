@@ -37,6 +37,9 @@ CRITICAL_ACTIONS = (
     "attempt.submitted",
     "attempt.auto_submitted",
     "exam.closed",
+    "exam.updated",
+    "user.created",
+    "user.updated",
 )
 
 

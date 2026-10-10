@@ -75,12 +75,13 @@ CI (`.github/workflows/ci.yml`) runs the same checks on every push and pull requ
 
 ## Backend API (Phase 2)
 
-Every route except `/health*` and `/auth/login` requires a JWT, and each is limited to
-its role. Interactive docs are at `/docs`.
+Every route except `/health*`, `/auth/login` and `/auth/logout` requires a signed-in user
+(the web app's httpOnly session cookie, or `Authorization: Bearer <JWT>` for API clients),
+and each is limited to its role. Interactive docs are at `/docs` (off in production).
 
 | Role | Routes |
 |---|---|
-| any | `POST /auth/login`, `GET /auth/me` |
+| any | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
 | Admin | `/users`; `/exams` (create, blueprint, `generate`, `manifest`, `candidates`, `monitor`, `results`, `stats/overview`); `/bank`, `/bank/summary`; `/audit`, `/audit/verify`; WebSocket `/ws/exams/{id}/monitor` |
 | Author | `POST/PATCH/DELETE /questions`, `/questions/mine`, `/questions/{id}/submit`, `PUT /questions/{id}/image` |
 | Reviewer | `/reviews/queue`, `/reviews/{id}/similar`, `/reviews/{id}/approve`, `/reviews/{id}/reject` |
@@ -103,7 +104,10 @@ its role. Interactive docs are at `/docs`.
   receipt of the answers.
 - **Audit.** Every significant action is appended to `audit_logs`, and each entry's
   hash includes the previous entry's hash. `GET /audit/verify` (or
-  `python -m app.cli verify-audit`) detects any edited or deleted row.
+  `python -m app.cli verify-audit`) detects any edited or deleted row. Entries are
+  chained when their transaction commits, under a lock on the one-row `audit_chain_head`
+  table, so simultaneous requests can't fork the chain; the head also reveals entries
+  deleted from the end.
 
 ## Frontend (Phase 3)
 
@@ -117,8 +121,8 @@ opens another role's pages is redirected back to their own.
 | Reviewer | Queue with full question, marked answer, image, TF-IDF duplicate check; approve, or reject with feedback |
 | Candidate | My Exams; instructions with countdown to release; exam screen with server-synced timer, question navigator, debounced auto-save with retry, submit confirmation, auto-submit at time-up; SHA-256 receipt |
 
-The session token is kept in `sessionStorage`, so it is cleared when the tab closes.
-Moving it to an httpOnly cookie is planned for hardening (Phase 5).
+The session lives in an httpOnly, `SameSite=Strict` cookie that page scripts can't read
+(see Phase 5 below).
 
 ## Blockchain audit anchoring (Phase 4, optional)
 
@@ -167,6 +171,71 @@ time.
 Checks: `npm run test:contracts` (contract tests); the backend tests cover anchoring with
 an in-memory chain.
 
+## Hardening (Phase 5)
+
+See [SECURITY.md](SECURITY.md) for the security review, threat model and residual risks.
+
+- **Sessions.** Sign-in sets an httpOnly, `SameSite=Strict` cookie (`Secure` and
+  `__Host-` prefixed in production); the token never reaches page scripts. It lasts
+  `ACCESS_TOKEN_MINUTES` of inactivity and renews while in use; the exam screen sends a
+  keep-alive so a candidate reading quietly isn't signed out. Writes made with the cookie
+  must carry the `X-AEGIS-CSRF: 1` header, which other sites can't add (CSRF protection).
+  API clients can keep using bearer tokens. The monitor WebSocket uses the cookie and
+  checks the `Origin` header.
+- **Rate limiting.** Sign-in is limited per client IP (`LOGIN_ATTEMPTS_PER_IP_PER_MINUTE`,
+  default 60) and failed sign-ins per IP + account (`LOGIN_FAILURES_PER_ACCOUNT` within
+  `LOGIN_FAILURE_WINDOW_MINUTES`, default 5 in 15). An exam centre where every candidate
+  shares one public IP should raise the per-IP limit above its candidate count.
+- **Headers and limits.** The API sends a no-content CSP, `X-Frame-Options: DENY`,
+  `nosniff`, `no-referrer`, `Cache-Control: no-store` and, in production, HSTS. Pages get
+  a CSP and the same framing protections. Request bodies over `MAX_REQUEST_BYTES`
+  (5 MB) are refused; passwords over bcrypt's 72-byte limit are rejected, not truncated.
+- **CORS.** Only the listed origins, methods and headers. In production `CORS_ORIGINS`
+  must be `https://` only, and secrets and the vault key must be set, or the API won't start.
+- **Concurrency.** Releasing, closing and submitting are compare-and-set updates, so when
+  many requests race only one wins and only one audit entry is written. Database
+  connections are released while a request waits for a worker thread
+  (`DB_POOL_SIZE` / `DB_MAX_OVERFLOW`, default 20 + 20).
+
+### Tests
+
+- `tests/test_security.py` walks **every** API route: anonymous gets 401, every other role
+  gets 403, and a route without a guard fails the test. It also covers cookies, CSRF, rate
+  limits, headers, CORS, body limits and production settings.
+- Time-lock tests: the paper doesn't open one second before `start_at`, nothing any role
+  can fetch contains question text before release, and a sealed paper copied onto another
+  exam won't decrypt.
+
+### Load test (many candidates at once)
+
+```powershell
+cd backend
+.venv\Scripts\python scripts/load_test.py --candidates 200 --database-url sqlite:///loadtest.db
+```
+
+It runs a real server against an **empty** database (it refuses one that has users), signs
+everyone in, starts all attempts at the release second, saves every answer, submits, and
+races parallel saves and double submits. It then checks the database: one attempt per
+candidate, every answer stored, every receipt hash reproducible, audit chain intact.
+Result on this machine with SQLite: 200/200 verified, 0 server errors, release p95 ~2.9 s.
+
+For realistic numbers, run it on MySQL. Create an empty database in MySQL Workbench as root:
+
+```sql
+CREATE DATABASE aegis_loadtest CHARACTER SET utf8mb4;
+GRANT ALL PRIVILEGES ON aegis_loadtest.* TO 'aegis'@'localhost';
+```
+
+then pass `--database-url "mysql+pymysql://aegis:<password>@localhost:3306/aegis_loadtest"`.
+
+### Deployment
+
+See [DEPLOY.md](DEPLOY.md) for the step-by-step guide (Vercel + Render + Aiven MySQL).
+In production the frontend's `proxy.ts` forwards `/api/*` with a shared secret
+(`AEGIS_PROXY_SECRET` / `PROXY_SECRET`) and the visitor's IP. The API then refuses
+direct access (except the health checks) and rate-limits by the real client IP. Database
+TLS is configured with `DATABASE_SSL_CA`.
+
 ## Status
 
 - Phase 1 (foundation): complete.
@@ -181,4 +250,10 @@ an in-memory chain.
   Web3.py anchoring with automatic triggers and verification, admin UI panel; verified
   on a local Hardhat chain, including tamper detection. Sepolia deployment needs your
   own test wallet and RPC URL (see above).
-- Next: Phase 5, hardening and testing.
+- Phase 5 (hardening and testing): complete. Cookie sessions with CSRF protection,
+  sign-in rate limiting, security headers, strict CORS and production checks, body
+  limits; an automatic route-guard matrix; time-lock edge cases; a 200-candidate load
+  test, which found audit-chain forking, duplicate release/submit events and
+  connection-pool exhaustion (all fixed). 76 backend tests. See SECURITY.md.
+- Phase 6 (deployment): prepared. `render.yaml`, Vercel proxy with shared secret, MySQL
+  TLS, and the step-by-step guide in DEPLOY.md. The deploy itself is done from your accounts.

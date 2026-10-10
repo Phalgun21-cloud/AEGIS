@@ -23,6 +23,14 @@ PASSWORD = "correct-horse-battery"
 _HASH = hash_password(PASSWORD)  # bcrypt is slow; hash once
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    from app.api.auth import login_failure_limiter, login_ip_limiter
+
+    login_ip_limiter.clear()
+    login_failure_limiter.clear()
+
+
 @pytest.fixture()
 def db_engine():
     engine = create_engine(

@@ -4,7 +4,7 @@ import pytest
 
 from app.api.audit import anchor_client
 from app.main import app
-from app.models import AnchorStatus, AuditLog, BlockchainAnchor, Role
+from app.models import AnchorStatus, AuditChainHead, AuditLog, BlockchainAnchor, Role
 from app.services import anchor, audit
 from app.services.anchor import AnchorError, OnChainAnchor, TxResult
 
@@ -87,6 +87,8 @@ def test_rewriting_whole_chain_is_detected(db, chain):
         e.prev_hash = prev
         e.entry_hash = audit._entry_hash(prev, e)
         prev = e.entry_hash
+    head = db.get(AuditChainHead, 1)  # a full-access attacker fixes up the head row too
+    head.last_hash, head.last_entry_id = prev, entries[-1].id
     db.commit()
     assert audit.verify_chain(db).valid  # the forged chain is internally consistent...
     result = anchor.verify_anchor(db, chain, row)

@@ -17,23 +17,24 @@ export async function fetchHealth(path: "/health" | "/health/db"): Promise<Healt
 
 // ---------- authenticated client (browser only) ----------
 
-const TOKEN_KEY = "aegis.token";
+// The session lives in an httpOnly cookie set by the API, so page scripts never see the token.
+// Every request carries this header; the API refuses cookie-authenticated writes without it,
+// which a cross-site page can't forge (CSRF protection).
+const CSRF_HEADERS = { "X-AEGIS-CSRF": "1" };
 
-// sessionStorage: the token is dropped when the tab closes, and isn't shared across tabs.
-export function getToken(): string | null {
-  try {
-    return sessionStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+// True while signed in, so an expired session (401) can send the user back to the login page.
+let sessionActive = false;
+
+export function setSessionActive(active: boolean) {
+  sessionActive = active;
 }
 
-export function setToken(token: string | null) {
+// Before Phase 5 the token was kept in sessionStorage; remove any copy left behind.
+if (typeof window !== "undefined") {
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem("aegis.token");
   } catch {
-    /* storage unavailable: session lasts for this page only */
+    /* storage unavailable */
   }
 }
 
@@ -73,9 +74,7 @@ type Options = {
 };
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
-  const headers: Record<string, string> = {};
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers: Record<string, string> = { ...CSRF_HEADERS };
   let body: BodyInit | undefined;
   if (opts.json !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -90,13 +89,14 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
       headers,
       body,
       cache: "no-store",
+      credentials: "same-origin",
     });
   } catch {
     // The web server itself is down (the browser couldn't connect at all).
     throw new ApiError(0, OFFLINE);
   }
-  if (res.status === 401 && token) {
-    setToken(null);
+  if (res.status === 401 && sessionActive) {
+    sessionActive = false;
     window.dispatchEvent(new Event("aegis:logout"));
   }
   if (!res.ok) {
@@ -116,10 +116,10 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
 
 /** Fetches an authenticated binary (e.g. a question image) as an object URL. */
 export async function apiBlobUrl(path: string): Promise<string | null> {
-  const token = getToken();
   const res = await fetch(`/api${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: CSRF_HEADERS,
     cache: "no-store",
+    credentials: "same-origin",
   });
   if (!res.ok) return null;
   return URL.createObjectURL(await res.blob());

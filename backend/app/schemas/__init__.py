@@ -9,7 +9,7 @@ _ORM = ConfigDict(from_attributes=True)
 
 # ---------- auth / users ----------
 class Token(BaseModel):
-    access_token: str
+    access_token: str | None  # None when the session is set as an httpOnly cookie instead
     token_type: str = "bearer"
     role: Role
 
@@ -26,8 +26,16 @@ class UserOut(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=10, max_length=72)  # bcrypt uses at most 72 bytes
+    password: str = Field(min_length=10, max_length=72)
     role: Role
+
+    @field_validator("password")
+    @classmethod
+    def _fits_bcrypt(cls, v: str) -> str:
+        # bcrypt only uses the first 72 bytes; refuse rather than silently ignore the rest.
+        if len(v.encode()) > 72:
+            raise ValueError("password must be at most 72 bytes (fewer for non-ASCII characters)")
+        return v
 
 
 class UserUpdate(BaseModel):

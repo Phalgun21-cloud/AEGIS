@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, Badge, Stat, Table, Td } from "@/components/ui";
-import { api, errorMessage, getToken } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import { fmtTime } from "@/lib/format";
 import type { Exam, MonitorSnapshot } from "@/lib/types";
 
@@ -49,11 +49,11 @@ export function MonitorTab({ exam, onStatus }: { exam: Exam; onStatus: () => voi
       timer = setInterval(poll, POLL_MS);
     };
 
-    // Same-origin WebSocket through the /api proxy; fall back to polling if it can't connect.
+    // Same-origin WebSocket through the /api proxy, authenticated by the session cookie;
+    // fall back to polling if it can't connect.
     try {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
       ws = new WebSocket(`${proto}://${window.location.host}/api/ws/exams/${exam.id}/monitor`);
-      ws.onopen = () => ws?.send(JSON.stringify({ token: getToken() }));
       ws.onmessage = (ev) => {
         gotMessage = true;
         setTransport("websocket");
