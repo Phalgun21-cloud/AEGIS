@@ -308,6 +308,7 @@ def _prod(**kw) -> Settings:
         "jwt_secret": "s" * 48,
         "vault_private_key": "-----BEGIN PRIVATE KEY-----...",
         "cors_origins": "https://aegis.example.com",
+        "proxy_secret": "p" * 40,
         "_env_file": None,
     }
     return Settings(**{**base, **kw})
@@ -324,3 +325,62 @@ def test_production_settings_are_strict():
         _prod(jwt_secret="short")
     with pytest.raises(ValidationError):
         _prod(vault_private_key="")
+    with pytest.raises(ValidationError):
+        _prod(proxy_secret="short")
+
+
+# ---------- deployment: proxy guard, database TLS ----------
+
+
+def _guarded_client(secret: str):
+    from fastapi import FastAPI, Request
+    from fastapi.testclient import TestClient
+
+    from app.core.middleware import ProxyGuardMiddleware
+
+    mini = FastAPI()
+
+    @mini.get("/health")
+    def health():
+        return {"ok": True}
+
+    @mini.get("/whoami")
+    def whoami(request: Request):
+        return {"ip": request.client.host}
+
+    mini.add_middleware(ProxyGuardMiddleware, secret=secret)
+    return TestClient(mini)
+
+
+def test_proxy_guard_blocks_direct_access_and_trusts_proxy_ip():
+    c = _guarded_client("s" * 40)
+    assert c.get("/health").status_code == 200  # platform health checks
+    assert c.get("/health/db").status_code == 404  # open path (no such route in this mini app)
+    assert c.get("/whoami").status_code == 403  # straight to the API, no secret
+    forged = {"x-aegis-proxy-secret": "wrong", "x-aegis-client-ip": "203.0.113.5"}
+    assert c.get("/whoami", headers=forged).status_code == 403
+    ok = {"x-aegis-proxy-secret": "s" * 40, "x-aegis-client-ip": "198.51.100.7"}
+    assert c.get("/whoami", headers=ok).json() == {"ip": "198.51.100.7"}
+
+
+def test_without_proxy_secret_the_client_ip_header_is_ignored():
+    c = _guarded_client("")
+    r = c.get("/whoami", headers={"x-aegis-client-ip": "203.0.113.5"})
+    assert r.status_code == 200 and r.json()["ip"] != "203.0.113.5"
+
+
+def test_database_tls_ca_is_passed_to_the_driver(monkeypatch):
+    from pathlib import Path
+
+    from app import db
+
+    monkeypatch.setattr(get_settings(), "database_ssl_ca", "")
+    assert db.mysql_connect_args() == {}
+    pem = r"-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----"
+    monkeypatch.setattr(get_settings(), "database_ssl_ca", pem)
+    path = Path(db.mysql_connect_args()["ssl"]["ca"])
+    assert path.read_text().splitlines() == [
+        "-----BEGIN CERTIFICATE-----",
+        "ABC",
+        "-----END CERTIFICATE-----",
+    ]

@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import audit, auth, candidate, exams, health, monitor, questions
 from app.api.deps import CSRF_HEADER
 from app.core.config import get_settings
-from app.core.middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
+from app.core.middleware import (
+    BodySizeLimitMiddleware,
+    ProxyGuardMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.services.lifecycle import run_scheduler
 
 settings = get_settings()
@@ -52,6 +56,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", CSRF_HEADER],
     max_age=600,
 )
+app.add_middleware(ProxyGuardMiddleware, secret=settings.proxy_secret)
 app.add_middleware(SecurityHeadersMiddleware, hsts=settings.is_production)
 
 for module in (health, auth, questions, exams, candidate, audit, monitor):

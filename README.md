@@ -228,13 +228,13 @@ GRANT ALL PRIVILEGES ON aegis_loadtest.* TO 'aegis'@'localhost';
 
 then pass `--database-url "mysql+pymysql://aegis:<password>@localhost:3306/aegis_loadtest"`.
 
-### Deployment notes for Phase 6
+### Deployment
 
-- `BACKEND_URL` is read when the frontend is **built** (Next.js bakes rewrites in), so set
-  it in the build environment.
-- Behind proxies, uvicorn must trust only the real proxy (`FORWARDED_ALLOW_IPS`), never
-  `*`, or clients can fake `X-Forwarded-For` and sidestep the per-IP sign-in limit.
-- Rate limits are per process; with several API instances, use a shared store.
+See [DEPLOY.md](DEPLOY.md) for the step-by-step guide (Vercel + Render + Aiven MySQL).
+In production the frontend's `proxy.ts` forwards `/api/*` with a shared secret
+(`AEGIS_PROXY_SECRET` / `PROXY_SECRET`) and the visitor's IP. The API then refuses
+direct access (except the health checks) and rate-limits by the real client IP. Database
+TLS is configured with `DATABASE_SSL_CA`.
 
 ## Status
 
@@ -255,4 +255,5 @@ then pass `--database-url "mysql+pymysql://aegis:<password>@localhost:3306/aegis
   limits; an automatic route-guard matrix; time-lock edge cases; a 200-candidate load
   test, which found audit-chain forking, duplicate release/submit events and
   connection-pool exhaustion (all fixed). 76 backend tests. See SECURITY.md.
-- Next: Phase 6, deployment.
+- Phase 6 (deployment): prepared. `render.yaml`, Vercel proxy with shared secret, MySQL
+  TLS, and the step-by-step guide in DEPLOY.md. The deploy itself is done from your accounts.

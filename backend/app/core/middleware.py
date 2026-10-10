@@ -1,6 +1,8 @@
 """Security headers and request size limits (pure ASGI, so WebSockets pass through)."""
 
-from starlette.datastructures import MutableHeaders
+import hmac
+
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -94,3 +96,47 @@ async def _reject(send: Send) -> None:
         }
     )
     await send({"type": "http.response.body", "body": body})
+
+
+_OPEN_PATHS = ("/health", "/health/db")
+
+
+class ProxyGuardMiddleware:
+    """Only accept traffic that came through the frontend proxy (which adds a shared secret),
+    and take the client IP from the proxy's header, since every request reaches the API from
+    the proxy. The health checks stay open (platform health checks, landing-page status)."""
+
+    def __init__(self, app: ASGIApp, *, secret: str):
+        self.app = app
+        self.secret = secret.encode()
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if not self.secret or scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        if scope["type"] == "http" and scope["path"] in _OPEN_PATHS:
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        given = headers.get("x-aegis-proxy-secret", "").encode()
+        if not hmac.compare_digest(given, self.secret):
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            body = b'{"detail":"Direct access to the API is not allowed"}'
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 403,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"content-length", str(len(body)).encode()),
+                    ],
+                }
+            )
+            await send({"type": "http.response.body", "body": body})
+            return
+        ip = headers.get("x-aegis-client-ip", "").strip()
+        if ip:
+            scope = dict(scope, client=(ip, 0))
+        await self.app(scope, receive, send)

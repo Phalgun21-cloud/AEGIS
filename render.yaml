@@ -1,0 +1,38 @@
+# Render Blueprint for the AEGIS API (Phase 6). See DEPLOY.md.
+# Values marked `sync: false` are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: aegis-api
+    runtime: python
+    rootDir: backend
+    region: singapore
+    # Always-on: the release scheduler, auto-submit and live monitor run in this process.
+    # Free instances sleep when idle. Keep exactly one instance (in-memory rate limits).
+    plan: starter
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt
+    # Migrations run on every deploy before the API starts.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ENVIRONMENT
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PROXY_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL_CA
+        sync: false
+      - key: VAULT_PRIVATE_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: ANCHOR_ENABLED
+        value: "false"

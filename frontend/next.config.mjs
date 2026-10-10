@@ -33,13 +33,10 @@ const nextConfig = {
   // Lets a verification build run beside a live `next dev` without clobbering its .next/.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
-  // Single origin: the browser talks to /api/* on the frontend, which proxies to FastAPI.
+  // /api/* is forwarded to FastAPI by proxy.ts (single origin).
   async rewrites() {
-    return [
-      { source: "/api/:path*", destination: `${backendUrl}/:path*` },
-      // Lets the API docs at /api/docs load their schema.
-      { source: "/openapi.json", destination: `${backendUrl}/openapi.json` },
-    ];
+    // Lets the API docs at /api/docs load their schema (development; docs are off in production).
+    return [{ source: "/openapi.json", destination: `${backendUrl}/openapi.json` }];
   },
   async headers() {
     // Pages only: proxied /api responses keep the API's own (stricter) headers.

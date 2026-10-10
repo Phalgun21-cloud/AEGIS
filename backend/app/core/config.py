@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     # Connections held open / allowed on top under load. Request handlers run on a pool of
     # 40 threads, so 20 + 20 lets every one of them hold a connection at once.
+    # Managed MySQL over TLS: the provider's CA certificate (PEM text). Empty = no TLS.
+    database_ssl_ca: str = ""
     db_pool_size: int = 20
     db_max_overflow: int = 20
 
@@ -27,6 +29,10 @@ class Settings(BaseSettings):
     login_attempts_per_ip_per_minute: int = 60
     login_failures_per_account: int = 5
     login_failure_window_minutes: int = 15
+
+    # Shared with the frontend proxy (AEGIS_PROXY_SECRET there). When set, every request
+    # except /health must carry it, and the client IP the proxy reports is trusted.
+    proxy_secret: str = ""
 
     # Requests larger than this are refused before they're read (images are capped lower).
     max_request_bytes: int = 5 * 1024 * 1024
@@ -83,6 +89,8 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must be set to a random value of 32+ chars")
             if not self.vault_private_key:
                 raise ValueError("VAULT_PRIVATE_KEY must be set in production")
+            if len(self.proxy_secret) < 32:
+                raise ValueError("PROXY_SECRET must be set to a random value of 32+ chars")
             bad = [o for o in self.cors_origin_list if o == "*" or not o.startswith("https://")]
             if bad or not self.cors_origin_list:
                 raise ValueError("CORS_ORIGINS must list only https:// origins in production")
