@@ -384,3 +384,16 @@ def test_database_tls_ca_is_passed_to_the_driver(monkeypatch):
         "ABC",
         "-----END CERTIFICATE-----",
     ]
+
+
+def test_settings_strip_pasted_newlines_and_hide_values_in_errors():
+    """Dashboard pastes often end in a newline; errors must not echo other settings."""
+    s = Settings(
+        database_url="mysql+pymysql://u:p@h:1/defaultdb\n",
+        proxy_secret="x" * 40 + "\n",
+        _env_file=None,
+    )
+    assert s.database_url.endswith("/defaultdb") and s.proxy_secret == "x" * 40
+    with pytest.raises(ValidationError) as err:
+        _prod(jwt_secret="short", database_url="mysql+pymysql://u:TOPSECRETPW@h/db")
+    assert "TOPSECRETPW" not in str(err.value)

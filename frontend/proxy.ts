@@ -2,11 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Single origin: the browser calls /api/* here and this forwards it to the FastAPI backend.
 // Read at request time, so BACKEND_URL doesn't have to be known when the app is built.
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+// .trim(): values pasted into a dashboard often carry a trailing newline.
+const BACKEND_URL = (process.env.BACKEND_URL ?? "http://localhost:8000").trim();
 // Shared with the API (PROXY_SECRET there). With it set, the API only accepts requests that
 // came through this proxy, so it can trust the client IP passed below for rate limiting.
 // Server-side only: never prefix it with NEXT_PUBLIC_.
-const PROXY_SECRET = process.env.AEGIS_PROXY_SECRET ?? "";
+const PROXY_SECRET = (process.env.AEGIS_PROXY_SECRET ?? "").trim();
 
 function clientIp(request: NextRequest): string {
   // Vercel sets these from the real connection (and overwrites values sent by the client).
