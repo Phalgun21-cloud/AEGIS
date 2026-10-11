@@ -7,7 +7,14 @@ DEV_JWT_SECRET = "dev-only-insecure-jwt-secret-change-me-in-production"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        # Values pasted into a hosting dashboard often carry a trailing newline.
+        str_strip_whitespace=True,
+        # A bad setting must never print the other (secret) settings in the error.
+        hide_input_in_errors=True,
+    )
 
     app_name: str = "AEGIS API"
     environment: str = "development"
