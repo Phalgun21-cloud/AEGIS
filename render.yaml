@@ -6,9 +6,11 @@ services:
     runtime: python
     rootDir: backend
     region: singapore
-    # Always-on: the release scheduler, auto-submit and live monitor run in this process.
-    # Free instances sleep when idle. Keep exactly one instance (in-memory rate limits).
-    plan: starter
+    # Free: sleeps after ~15 min without traffic (30-60 s cold start; the scheduler pauses,
+    # but release times are still enforced on every request). Fine for demos and dry runs.
+    # Before a real exam switch to `starter` (always on): Settings -> Instance Type.
+    # Keep exactly one instance (in-memory rate limits and scheduler).
+    plan: free
     numInstances: 1
     buildCommand: pip install -r requirements.txt
     # Migrations run on every deploy before the API starts.

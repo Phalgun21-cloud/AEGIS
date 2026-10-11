@@ -44,8 +44,8 @@ website. Never paste secrets into chat, into code, or into a file inside the rep
    - [vercel.com](https://vercel.com): sign up with GitHub
    - Vercel's free Hobby plan is for non-commercial use; an institution running real
      exams should use Pro.
-   - [render.com](https://render.com): sign up with GitHub, and add a payment method,
-     because the API needs the paid **Starter** instance
+   - [render.com](https://render.com): sign up with GitHub. The blueprint uses the
+     **free** instance, so no card is needed yet (see [Free vs Starter](#free-vs-starter-on-render)).
    - [aiven.io](https://aiven.io)
 
 ---
@@ -133,16 +133,27 @@ cd D:\projects\AEGIS\backend
    If the deploy fails, see [Troubleshooting](#troubleshooting). The API refuses to start
    when a production setting is missing or weak, and the log names the setting.
 
-### Create the first admin
+### Create the first admin (from your PC)
 
-In Render, open **aegis-api** → **Shell** and run:
+Free Render instances have no Shell, so create the admin from your PC. It connects straight
+to the Aiven database over TLS, using the files in `D:egis-secrets`. Run this in
+PowerShell, replacing the email and name:
 
-```bash
-python -m app.cli create-user --role admin --email you@yourdomain.com --name "Your Name"
+```powershell
+cd D:\projects\AEGISackend
+$env:DATABASE_URL = (Get-Content D:egis-secrets\database_url.txt -Raw).Trim()
+$env:DATABASE_SSL_CA = Get-Content D:egis-secrets\ca.pem -Raw
+.venv\Scripts\python -m app.cli create-user --role admin --email you@yourdomain.com --name "Your Name"
+Remove-Item Env:DATABASE_URL, Env:DATABASE_SSL_CA
 ```
 
 It asks for the password twice and doesn't show it. Use 10 or more characters, and at most
-72 bytes. Every other account is created from the Admin → Users page afterwards.
+72 bytes, and don't reuse your local password. The last line removes the production
+connection from that PowerShell window. Every other account is created from the
+Admin → Users page afterwards.
+
+On a paid instance you can run the same `create-user` command in Render's **Shell** tab
+instead.
 
 ---
 
@@ -192,6 +203,28 @@ doesn't pass WebSockets through, and polling refreshes every 3 seconds.
 
 ---
 
+## Free vs Starter on Render
+
+The blueprint starts on Render's **free** instance:
+
+- **It sleeps** after about 15 minutes with no visitors. The next visitor waits about
+  30–60 seconds while it wakes.
+- **While it sleeps,** the release scheduler pauses. Exams stay correct: a paper can never
+  open before its start time, because that check runs on every request. Exams move to
+  live or closed on the next visit, and unfinished attempts are submitted with the deadline
+  as their time. Blockchain anchoring waits.
+- **It's a small machine** (512 MB), so sign-ins and paper generation are slower, and a
+  whole class starting at once will be slow.
+
+**Optional keep-alive.** Use a free uptime monitor, such as UptimeRobot, to open
+`https://<your-api>.onrender.com/health` every 10 minutes. One service running all month
+stays within Render's 750 free hours.
+
+**Before an exam with real candidates,** switch to **Starter**: in Render, open
+**aegis-api** → **Settings** → **Instance Type** → *Starter*. Add a payment method first.
+Your data and settings stay, and there's no new deploy to run. Also change `plan: free`
+to `plan: starter` in `render.yaml`, so the blueprint matches.
+
 ## Everyday operations
 
 - **Updating.** Push to `main`. Render and Vercel each redeploy automatically, and Render
@@ -216,6 +249,7 @@ doesn't pass WebSockets through, and polling refreshes every 3 seconds.
 
 | Symptom | Cause and fix |
 |---|---|
+| The first page load takes 30–60 s, then everything is fast | The free Render instance was asleep. That's expected; see [Free vs Starter](#free-vs-starter-on-render). |
 | The Render deploy stops with `JWT_SECRET` / `VAULT_PRIVATE_KEY` / `PROXY_SECRET` / `CORS_ORIGINS must ...` | A production setting is missing or weak. Fill it in on Render (see Step 3.3). |
 | `Can't connect to MySQL` or an SSL error in the Render logs | Check `DATABASE_URL` (password URL-encoded, port and host right) and that `DATABASE_SSL_CA` holds the whole `ca.pem`. Check Aiven's allowed IPs. |
 | The site says "Can't reach the AEGIS server" | `BACKEND_URL` is wrong on Vercel, or the Render service isn't running. Open `<render-url>/health`. |
