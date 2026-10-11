@@ -136,13 +136,13 @@ cd D:\projects\AEGIS\backend
 ### Create the first admin (from your PC)
 
 Free Render instances have no Shell, so create the admin from your PC. It connects straight
-to the Aiven database over TLS, using the files in `D:egis-secrets`. Run this in
+to the Aiven database over TLS, using the files in `D:\aegis-secrets`. Run this in
 PowerShell, replacing the email and name:
 
 ```powershell
-cd D:\projects\AEGISackend
-$env:DATABASE_URL = (Get-Content D:egis-secrets\database_url.txt -Raw).Trim()
-$env:DATABASE_SSL_CA = Get-Content D:egis-secrets\ca.pem -Raw
+cd D:\projects\AEGIS\backend
+$env:DATABASE_URL = (Get-Content D:\aegis-secrets\database_url.txt -Raw).Trim()
+$env:DATABASE_SSL_CA = Get-Content D:\aegis-secrets\ca.pem -Raw
 .venv\Scripts\python -m app.cli create-user --role admin --email you@yourdomain.com --name "Your Name"
 Remove-Item Env:DATABASE_URL, Env:DATABASE_SSL_CA
 ```
