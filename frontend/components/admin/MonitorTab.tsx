@@ -96,20 +96,46 @@ export function MonitorTab({ exam, onStatus }: { exam: Exam; onStatus: () => voi
         <Stat label="Submitted" value={snap.submitted} />
         <Stat label="Questions" value={snap.questions} />
       </div>
-      <Table head={["Candidate", "Started", "Last saved", "Answered", "Submitted"]} empty="No one has started yet.">
+      <Table
+        head={["Camera", "Candidate", "Started", "Last saved", "Answered", "Violations", "Submitted"]}
+        empty="No one has started yet."
+      >
         {snap.attempts.map((a) => (
           <tr key={a.attempt_id}>
+            <Td>
+              {a.snapshot_at ? (
+                <a
+                  href={`/api/exams/${exam.id}/attempts/${a.attempt_id}/snapshot?t=${encodeURIComponent(a.snapshot_at)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Camera at ${fmtTime(a.snapshot_at)}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/exams/${exam.id}/attempts/${a.attempt_id}/snapshot?t=${encodeURIComponent(a.snapshot_at)}`}
+                    alt={`Camera snapshot of ${a.candidate_name}`}
+                    className="h-[60px] w-20 rounded border border-slate-700 object-cover"
+                  />
+                </a>
+              ) : (
+                <span className="text-xs text-slate-500">{a.submitted_at ? "—" : "no camera yet"}</span>
+              )}
+            </Td>
             <Td>{a.candidate_name}</Td>
             <Td>{fmtTime(a.started_at)}</Td>
             <Td>{fmtTime(a.last_saved_at)}</Td>
             <Td className="tabular-nums">
               {a.answered} / {snap.questions}
             </Td>
+            <Td className="tabular-nums">
+              <span className={a.violations ? "text-rose-300" : "text-slate-500"}>{a.violations}</span>
+              {a.noise_flags > 0 && <div className="text-xs text-amber-300">noise ×{a.noise_flags}</div>}
+            </Td>
             <Td>
               {a.submitted_at ? (
                 <span className={a.auto_submitted ? "text-amber-300" : "text-emerald-300"}>
                   {fmtTime(a.submitted_at)}
-                  {a.auto_submitted && " (time up)"}
+                  {a.auto_submitted && " (auto)"}
                 </span>
               ) : (
                 <span className="text-cyan-300">In progress</span>

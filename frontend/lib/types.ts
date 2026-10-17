@@ -109,6 +109,9 @@ export type MonitorAttempt = {
   answered: number;
   submitted_at: string | null;
   auto_submitted: boolean;
+  violations: number;
+  noise_flags: number;
+  snapshot_at: string | null;
 };
 
 export type MonitorSnapshot = {
@@ -149,6 +152,7 @@ export type Results = {
     submitted_at: string | null;
     auto_submitted: boolean;
     answers_sha256: string | null;
+    violations: number;
   }[];
 };
 
@@ -197,6 +201,7 @@ export type CandidateExam = {
   status: ExamStatus;
   attempt_id: number | null;
   submitted: boolean;
+  media_required: boolean;
 };
 
 export type PaperQuestion = {
@@ -218,6 +223,19 @@ export type Attempt = {
   submitted_at: string | null;
   answers: Record<string, number>;
   questions: PaperQuestion[];
+  violations: number;
+  max_violations: number;
+  media_required: boolean;
+  snapshot_seconds: number;
+};
+
+export type ViolationKind = "fullscreen_exit" | "tab_hidden" | "window_blur" | "camera_off" | "noise";
+
+export type ViolationAck = {
+  violations: number;
+  max_violations: number;
+  counted: boolean;
+  submitted: boolean;
 };
 
 export type SaveAck = { saved_at: string; answered: number; remaining_seconds: number };
@@ -227,6 +245,8 @@ export type Receipt = {
   submitted_at: string;
   auto_submitted: boolean;
   answers_sha256: string;
+  violations: number;
+  max_violations: number;
 };
 
 export type BlockchainAnchor = {

@@ -8,6 +8,7 @@ import { Alert, Button, Card, Loading, cx } from "@/components/ui";
 import { ApiError, api, errorMessage } from "@/lib/api";
 import { fmtDateTime, fmtDuration, fmtTime, parseUtc } from "@/lib/format";
 import type { Attempt, Receipt, SaveAck } from "@/lib/types";
+import { enterFullscreen, useProctoring } from "@/lib/useProctoring";
 
 const SAVE_DEBOUNCE_MS = 700;
 const RETRY_MS = 5000;
@@ -146,6 +147,26 @@ export default function AttemptPage() {
     return () => window.removeEventListener("beforeunload", onLeave);
   }, []);
 
+  // Violation limit reached: the server has submitted the attempt; show the receipt.
+  const onLimitReached = useCallback(() => {
+    finished.current = true;
+    clearTimeout(saveTimer.current);
+    void load();
+  }, [load]);
+
+  const {
+    attachVideo,
+    ...proctor
+  } = useProctoring({
+    attemptId: id,
+    active: !!attempt && !attempt.submitted_at && !receipt,
+    mediaRequired: attempt?.media_required ?? false,
+    snapshotSeconds: attempt?.snapshot_seconds ?? 0,
+    initialViolations: attempt?.violations ?? 0,
+    maxViolations: attempt?.max_violations ?? 0,
+    onLimitReached,
+  });
+
   if (error && !attempt) return <Alert>{error}</Alert>;
   if (!attempt) return <Loading label="Loading your exam…" />;
 
@@ -169,6 +190,13 @@ export default function AttemptPage() {
             {saveState === "saved" && <span className="text-emerald-300">All answers saved {fmtTime(savedAt)}</span>}
             {saveState === "error" && <span className="text-amber-300">Not saved. Retrying…</span>}
             {saveState === "idle" && <span>Answers save automatically</span>}
+            {proctor.violations > 0 && (
+              <span className="text-rose-300">
+                {" "}
+                · Violations {proctor.violations}
+                {attempt.max_violations ? ` of ${attempt.max_violations}` : ""}
+              </span>
+            )}
           </div>
         </div>
         <div
@@ -185,6 +213,15 @@ export default function AttemptPage() {
 
       {error && <Alert>{error}</Alert>}
 
+      {proctor.blocked ? (
+        <ProctorGate
+          needsMedia={proctor.needsMedia}
+          mediaError={proctor.mediaError}
+          onRetryMedia={() => void proctor.retryMedia()}
+          violations={proctor.violations}
+          maxViolations={attempt.max_violations}
+        />
+      ) : (
       <div className="grid gap-6 lg:grid-cols-[1fr_14rem]">
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between text-sm text-slate-400">
@@ -275,6 +312,38 @@ export default function AttemptPage() {
           </div>
         </Card>
       </div>
+      )}
+
+      {proctor.hasVideo && (
+        <div className="fixed bottom-4 right-4 z-30 w-40 overflow-hidden rounded-lg border border-cyan-500/30 bg-black shadow-lg">
+          <video ref={attachVideo} muted playsInline className="block aspect-[4/3] w-full -scale-x-100 object-cover" />
+          <div className="flex items-center gap-2 px-2 py-1 text-[10px] text-slate-400">
+            <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden /> Proctored
+            <span className="ml-auto h-1.5 w-12 overflow-hidden rounded bg-slate-800" aria-label="Microphone level">
+              <span className="block h-full bg-emerald-400" style={{ width: `${Math.min(100, proctor.level * 400)}%` }} />
+            </span>
+          </div>
+        </div>
+      )}
+
+      {proctor.warning && !proctor.blocked && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4" role="alertdialog" aria-modal="true">
+          <Card className="w-full max-w-md border-rose-500/40 bg-[#1a0b14]">
+            <h2 className="text-lg font-medium text-rose-200">Warning</h2>
+            <p className="mt-2 text-sm text-slate-200">{proctor.warning}</p>
+            <div className="mt-6 flex justify-end">
+              <Button
+                onClick={() => {
+                  enterFullscreen();
+                  proctor.dismissWarning();
+                }}
+              >
+                Return to the exam
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {confirming && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true">
@@ -323,7 +392,11 @@ function ReceiptView({ attempt, receipt }: { attempt: Attempt; receipt: Receipt 
         <h1 className="mt-4 text-xl font-semibold text-white">Exam submitted</h1>
         <p className="mt-1 text-sm text-slate-400">{attempt.title}</p>
         {fetched?.auto_submitted && (
-          <p className="mt-3 text-sm text-amber-300">Time ran out, so your saved answers were submitted automatically.</p>
+          <p className="mt-3 text-sm text-amber-300">
+            {fetched.max_violations > 0 && fetched.violations >= fetched.max_violations
+              ? `You left the exam ${fetched.violations} times, so your saved answers were submitted automatically.`
+              : "Time ran out, so your saved answers were submitted automatically."}
+          </p>
         )}
         <dl className="mt-6 space-y-2 text-left text-sm">
           <div className="flex justify-between">
@@ -350,5 +423,57 @@ function ReceiptView({ attempt, receipt }: { attempt: Attempt; receipt: Receipt 
         </Link>
       </Card>
     </div>
+  );
+}
+
+
+function ProctorGate({
+  needsMedia,
+  mediaError,
+  onRetryMedia,
+  violations,
+  maxViolations,
+}: {
+  needsMedia: boolean;
+  mediaError: string | null;
+  onRetryMedia: () => void;
+  violations: number;
+  maxViolations: number;
+}) {
+  return (
+    <Card className="mx-auto max-w-lg p-8 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/15 text-2xl text-rose-300">
+        !
+      </div>
+      {needsMedia ? (
+        <>
+          <h2 className="mt-4 text-xl font-semibold text-white">Camera and microphone required</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            This exam is proctored. Keep your camera and microphone on for the whole exam. The questions are hidden until
+            both are working.
+          </p>
+          {mediaError && <p className="mt-3 text-sm text-amber-300">{mediaError}</p>}
+          <Button className="mt-6" onClick={onRetryMedia}>
+            Turn on camera and microphone
+          </Button>
+        </>
+      ) : (
+        <>
+          <h2 className="mt-4 text-xl font-semibold text-white">Return to full screen</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            The exam must stay in full screen. The questions are hidden until you return. Your timer keeps running.
+          </p>
+          <Button className="mt-6" onClick={enterFullscreen}>
+            Return to full screen
+          </Button>
+        </>
+      )}
+      {violations > 0 && (
+        <p className="mt-4 text-sm text-rose-300">
+          Violations recorded: {violations}
+          {maxViolations ? ` of ${maxViolations}. At ${maxViolations} your exam is submitted automatically.` : "."}
+        </p>
+      )}
+    </Card>
   );
 }

@@ -97,3 +97,10 @@ class Attempt(Base):
     answers_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Proctoring: times the candidate left full screen or switched away (see api/candidate.py).
+    violations: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_violation_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    noise_flags: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Latest webcam frame only (overwritten every few seconds), for the admin's live monitor.
+    snapshot: Mapped[bytes | None] = mapped_column(Blob, nullable=True, deferred=True)
+    snapshot_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

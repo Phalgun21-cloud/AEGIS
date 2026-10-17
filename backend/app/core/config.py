@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 15
 
+    # Exam proctoring: leaving full screen, switching tabs or windows counts as a violation.
+    # The attempt is auto-submitted at this many violations; 0 only records them.
+    proctor_max_violations: int = 3
+    # Events closer together than this count once (Alt+Tab fires blur and visibility at once).
+    proctor_violation_gap_seconds: int = 3
+    # Camera and microphone must stay on during the attempt; a webcam frame is sent this often.
+    proctor_media_required: bool = True
+    proctor_snapshot_seconds: int = 20
+    max_snapshot_bytes: int = 300 * 1024
+
     # AI generator: stems at or above this TF-IDF cosine similarity count as duplicates.
     duplicate_threshold: float = 0.85
     max_image_bytes: int = 2 * 1024 * 1024

@@ -1,8 +1,8 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, undefer
 
 from app.api.deps import require_admin
 from app.core.config import get_settings
@@ -332,6 +332,9 @@ def monitor_snapshot(db: Session, exam: Exam) -> dict:
             "answered": sum(1 for v in (a.answers or {}).values() if v is not None),
             "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None,
             "auto_submitted": a.auto_submitted,
+            "violations": a.violations,
+            "noise_flags": a.noise_flags,
+            "snapshot_at": a.snapshot_at.isoformat() if a.snapshot_at else None,
         }
         for a, name in rows
     ]
@@ -355,6 +358,26 @@ def monitor_snapshot(db: Session, exam: Exam) -> dict:
 @router.get("/{exam_id}/monitor")
 def monitor(exam_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     return monitor_snapshot(db, _get(db, exam_id))
+
+
+@router.get("/{exam_id}/attempts/{attempt_id}/snapshot")
+def attempt_snapshot(
+    exam_id: int,
+    attempt_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The candidate's latest webcam frame, for the live monitor."""
+    attempt = db.execute(
+        select(Attempt)
+        .where(Attempt.id == attempt_id, Attempt.exam_id == exam_id)
+        .options(undefer(Attempt.snapshot))
+    ).scalar_one_or_none()
+    if attempt is None or attempt.snapshot is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No snapshot")
+    return Response(
+        attempt.snapshot, media_type="image/jpeg", headers={"Cache-Control": "no-store"}
+    )
 
 
 @router.get("/{exam_id}/results")
@@ -406,6 +429,7 @@ def results(
                 "submitted_at": a.submitted_at,
                 "auto_submitted": a.auto_submitted,
                 "answers_sha256": a.answers_sha256,
+                "violations": a.violations,
             }
             for a, name, email in rows
         ],

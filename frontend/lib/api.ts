@@ -71,6 +71,7 @@ type Options = {
   method?: string;
   json?: unknown;
   form?: FormData | URLSearchParams;
+  blob?: Blob; // sent as-is with its own type (e.g. a webcam JPEG)
 };
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
@@ -81,6 +82,9 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     body = JSON.stringify(opts.json);
   } else if (opts.form) {
     body = opts.form;
+  } else if (opts.blob) {
+    headers["Content-Type"] = opts.blob.type || "application/octet-stream";
+    body = opts.blob;
   }
   let res: Response;
   try {

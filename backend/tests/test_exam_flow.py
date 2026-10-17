@@ -316,3 +316,126 @@ def test_sealed_blobs_are_bound_to_their_record(client, db, world, clock):
     assert open_paper(ea, clock.now)["questions"]
     with pytest.raises(VaultError):
         open_paper(eb, clock.now)
+
+
+# ---------- proctoring ----------
+
+
+def _live_attempt(client, w, clock) -> tuple[int, int]:
+    eid = _ready_exam(client, w, clock)
+    clock.advance(minutes=60)
+    r = client.post(f"/candidate/exams/{eid}/start", headers=w["c1_h"])
+    assert r.status_code == 200, r.text
+    assert r.json()["violations"] == 0 and r.json()["max_violations"] == 3
+    return eid, r.json()["attempt_id"]
+
+
+def test_violations_counted_and_limit_auto_submits(client, world, clock):
+    w = world
+    eid, aid = _live_attempt(client, w, clock)
+    url = f"/candidate/attempts/{aid}/violations"
+    qid = client.get(f"/candidate/attempts/{aid}", headers=w["c1_h"]).json()["questions"][0]
+    client.put(
+        f"/candidate/attempts/{aid}/answers",
+        json={"answers": {str(qid["question_id"]): 1}},
+        headers=w["c1_h"],
+    )
+
+    r = client.post(url, json={"kind": "window_blur"}, headers=w["c1_h"])
+    assert r.json() == {"violations": 1, "max_violations": 3, "counted": True, "submitted": False}
+    # Alt+Tab fires blur and visibilitychange together: one violation, not two.
+    r = client.post(url, json={"kind": "tab_hidden"}, headers=w["c1_h"])
+    assert r.json()["violations"] == 1 and r.json()["counted"] is False
+
+    clock.advance(seconds=10)
+    assert client.post(url, json={"kind": "fullscreen_exit"}, headers=w["c1_h"]).json()[
+        "violations"
+    ] == 2
+    clock.advance(seconds=10)
+    r = client.post(url, json={"kind": "tab_hidden"}, headers=w["c1_h"])
+    assert r.json() == {"violations": 3, "max_violations": 3, "counted": True, "submitted": True}
+
+    receipt = client.post(f"/candidate/attempts/{aid}/submit", headers=w["c1_h"]).json()
+    assert receipt["auto_submitted"] is True and receipt["violations"] == 3
+    # Nothing more can be saved or reported once submitted.
+    assert client.post(url, json={"kind": "tab_hidden"}, headers=w["c1_h"]).status_code == 409
+
+    monitor = client.get(f"/exams/{eid}/monitor", headers=w["admin_h"]).json()
+    assert monitor["attempts"][0]["violations"] == 3
+    clock.advance(minutes=120)
+    res = client.get(f"/exams/{eid}/results", headers=w["admin_h"]).json()
+    row = res["attempts"][0]
+    assert row["violations"] == 3 and row["score"] == 1  # the saved answer still counts
+    actions = [e["action"] for e in client.get("/audit", headers=w["admin_h"]).json()]
+    assert actions.count("attempt.violation") == 3 and "attempt.violation_limit" in actions
+
+
+def test_violation_limit_zero_only_records(client, world, clock, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "proctor_max_violations", 0)
+    w = world
+    _, aid = _live_attempt_no_limit(client, w, clock)
+    for _ in range(5):
+        clock.advance(seconds=10)
+        r = client.post(
+            f"/candidate/attempts/{aid}/violations", json={"kind": "tab_hidden"}, headers=w["c1_h"]
+        )
+        assert r.json()["submitted"] is False
+    assert r.json()["violations"] == 5
+
+
+def _live_attempt_no_limit(client, w, clock) -> tuple[int, int]:
+    eid = _ready_exam(client, w, clock)
+    clock.advance(minutes=60)
+    r = client.post(f"/candidate/exams/{eid}/start", headers=w["c1_h"])
+    return eid, r.json()["attempt_id"]
+
+
+def test_violations_only_for_own_attempt(client, world, clock):
+    w = world
+    _, aid = _live_attempt(client, w, clock)
+    r = client.post(
+        f"/candidate/attempts/{aid}/violations", json={"kind": "tab_hidden"}, headers=w["c2_h"]
+    )
+    assert r.status_code == 404
+    r = client.post(
+        f"/candidate/attempts/{aid}/violations", json={"kind": "bogus"}, headers=w["c1_h"]
+    )
+    assert r.status_code == 422
+
+
+JPEG = b"\xff\xd8\xff\xe0" + b"0" * 100
+
+
+def test_snapshot_upload_and_admin_view(client, world, clock):
+    w = world
+    eid, aid = _live_attempt(client, w, clock)
+    attempt = client.get(f"/candidate/attempts/{aid}", headers=w["c1_h"]).json()
+    assert attempt["media_required"] is True and attempt["snapshot_seconds"] == 20
+    url = f"/candidate/attempts/{aid}/snapshot"
+    h = w["c1_h"] | {"Content-Type": "image/jpeg"}
+    assert client.put(url, content=b"not a jpeg", headers=h).status_code == 415
+    assert client.put(url, content=JPEG + b"0" * 400_000, headers=h).status_code == 413
+    assert client.put(url, content=JPEG, headers=w["c2_h"]).status_code == 404
+    assert client.put(url, content=JPEG, headers=h).status_code == 204
+
+    snap = f"/exams/{eid}/attempts/{aid}/snapshot"
+    assert client.get(snap, headers=w["c1_h"]).status_code == 403
+    r = client.get(snap, headers=w["admin_h"])
+    assert r.status_code == 200 and r.content == JPEG and r.headers["content-type"] == "image/jpeg"
+    monitor = client.get(f"/exams/{eid}/monitor", headers=w["admin_h"]).json()
+    assert monitor["attempts"][0]["snapshot_at"] is not None
+
+
+def test_noise_is_flagged_but_never_ends_the_attempt(client, world, clock):
+    w = world
+    eid, aid = _live_attempt(client, w, clock)
+    for _ in range(5):
+        r = client.post(
+            f"/candidate/attempts/{aid}/violations", json={"kind": "noise"}, headers=w["c1_h"]
+        )
+        assert r.json()["submitted"] is False and r.json()["violations"] == 0
+    monitor = client.get(f"/exams/{eid}/monitor", headers=w["admin_h"]).json()
+    assert monitor["attempts"][0]["noise_flags"] == 5
+    assert monitor["attempts"][0]["submitted_at"] is None

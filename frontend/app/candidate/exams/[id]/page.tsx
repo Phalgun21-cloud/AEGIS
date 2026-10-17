@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Alert, Button, Card, Loading, PageHeader } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { fmtDateTime, fmtDuration, parseUtc } from "@/lib/format";
 import type { Attempt, CandidateExam } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
+import { enterFullscreen, openCameraAndMic, watchLevel } from "@/lib/useProctoring";
 
 export default function ExamInstructionsPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ export default function ExamInstructionsPage() {
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devicesOk, setDevicesOk] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -28,12 +30,15 @@ export default function ExamInstructionsPage() {
   const opensIn = exam ? (parseUtc(exam.start_at).getTime() - now) / 1000 : 0;
   const { reload } = exams;
 
-  // When the countdown reaches zero, refresh so the Start button appears.
+  // Once the countdown reaches zero, keep refreshing until the exam is released, so the Start
+  // button appears even if the server was slow (e.g. waking up) at the release second.
+  const awaitingRelease = !!exam && exam.status !== "live" && exam.status !== "closed" && opensIn <= 0;
   useEffect(() => {
-    if (exam && exam.status !== "live" && exam.status !== "closed" && opensIn <= 0 && opensIn > -5) {
-      void reload();
-    }
-  }, [exam, opensIn, reload]);
+    if (!awaitingRelease) return;
+    void reload();
+    const t = setInterval(() => void reload(), 5000);
+    return () => clearInterval(t);
+  }, [awaitingRelease, reload]);
 
   // A finished attempt goes straight to its receipt.
   useEffect(() => {
@@ -47,6 +52,8 @@ export default function ExamInstructionsPage() {
   if (exam.submitted) return <Loading />;
 
   async function start() {
+    // Must run inside the click itself: browsers only allow full screen from a user gesture.
+    enterFullscreen();
     setBusy(true);
     setError(null);
     try {
@@ -59,6 +66,7 @@ export default function ExamInstructionsPage() {
   }
 
   const resuming = exam.attempt_id !== null;
+  const needsCheck = exam.media_required && !resuming;
 
   return (
     <>
@@ -113,8 +121,18 @@ export default function ExamInstructionsPage() {
                     I have read the instructions and I&apos;m ready to begin.
                   </label>
                 )}
+                {needsCheck && <DeviceCheck onReady={setDevicesOk} />}
+                <p className="text-xs text-slate-500">
+                  The exam opens in full screen. Leaving full screen, switching tabs or windows is recorded as a
+                  violation{exam.media_required ? ", and your camera and microphone stay on throughout" : ""}.
+                </p>
                 {error && <Alert>{error}</Alert>}
-                <Button className="w-full" onClick={start} busy={busy} disabled={!resuming && !agreed}>
+                <Button
+                  className="w-full"
+                  onClick={start}
+                  busy={busy}
+                  disabled={!resuming && (!agreed || (needsCheck && !devicesOk))}
+                >
                   {resuming ? "Resume exam" : "Start exam"}
                 </Button>
               </div>
@@ -123,5 +141,66 @@ export default function ExamInstructionsPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+
+/** Camera and microphone check before starting: asks for permission once, shows a preview. */
+function DeviceCheck({ onReady }: { onReady: (ok: boolean) => void }) {
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [level, setLevel] = useState(0);
+  const video = useRef<HTMLVideoElement | null>(null);
+
+  async function check() {
+    setError(null);
+    try {
+      const s = await openCameraAndMic();
+      setStream(s);
+      onReady(true);
+    } catch (e) {
+      setError(errorMessage(e));
+      onReady(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!stream) return;
+    if (video.current) {
+      video.current.srcObject = stream;
+      void video.current.play().catch(() => {});
+    }
+    const stopLevel = watchLevel(stream, setLevel);
+    return () => {
+      stopLevel();
+      stream.getTracks().forEach((t) => t.stop()); // the exam page opens its own
+    };
+  }, [stream]);
+
+  return (
+    <div className="rounded-lg border border-slate-800 p-3">
+      <div className="text-xs uppercase tracking-wider text-slate-400">Camera and microphone</div>
+      {stream ? (
+        <>
+          <video ref={video} muted playsInline className="mt-2 aspect-[4/3] w-full -scale-x-100 rounded bg-black object-cover" />
+          <div className="mt-2 flex items-center gap-2 text-xs text-emerald-300">
+            Working. Speak to test the microphone:
+            <span className="h-1.5 flex-1 overflow-hidden rounded bg-slate-800">
+              <span className="block h-full bg-emerald-400" style={{ width: `${Math.min(100, level * 400)}%` }} />
+            </span>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="mt-1 text-xs text-slate-400">
+            This exam is proctored: your camera and microphone must stay on, and the exam admin sees camera snapshots.
+          </p>
+          {error && <p className="mt-2 text-xs text-amber-300">{error}</p>}
+          <Button variant="secondary" className="mt-3 w-full" onClick={check}>
+            Allow camera and microphone
+          </Button>
+        </>
+      )}
+    </div>
   );
 }

@@ -1,15 +1,24 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_candidate
+from app.core.config import get_settings
 from app.core.timeutil import utcnow
 from app.db import get_db
 from app.models import Attempt, Exam, ExamCandidate, ExamStatus, User
-from app.schemas import AttemptOut, CandidateExamOut, SaveAck, SaveAnswers, SubmissionReceipt
+from app.schemas import (
+    AttemptOut,
+    CandidateExamOut,
+    SaveAck,
+    SaveAnswers,
+    SubmissionReceipt,
+    ViolationAck,
+    ViolationReport,
+)
 from app.services import audit
 from app.services.content import candidate_view, open_paper
 from app.services.lifecycle import finalize_attempt, refresh_exam
@@ -61,6 +70,10 @@ def _attempt_out(attempt: Attempt, exam: Exam, now: datetime) -> AttemptOut:
         submitted_at=attempt.submitted_at,
         answers={k: v for k, v in (attempt.answers or {}).items() if v is not None},
         questions=[] if attempt.submitted_at else candidate_view(paper),
+        violations=attempt.violations,
+        max_violations=get_settings().proctor_max_violations,
+        media_required=get_settings().proctor_media_required,
+        snapshot_seconds=get_settings().proctor_snapshot_seconds,
     )
 
 
@@ -95,6 +108,7 @@ def my_exams(user: User = Depends(require_candidate), db: Session = Depends(get_
             status=ExamStatus.DRAFT if e.status == ExamStatus.SEALED else e.status,
             attempt_id=attempts[e.id].id if e.id in attempts else None,
             submitted=e.id in attempts and attempts[e.id].submitted_at is not None,
+            media_required=get_settings().proctor_media_required,
         )
         for e in exams
     ]
@@ -190,4 +204,102 @@ def submit(
         submitted_at=attempt.submitted_at,
         auto_submitted=attempt.auto_submitted,
         answers_sha256=attempt.answers_sha256,
+        violations=attempt.violations,
+        max_violations=get_settings().proctor_max_violations,
     )
+
+
+@router.post("/attempts/{attempt_id}/violations", response_model=ViolationAck)
+def report_violation(
+    attempt_id: int,
+    body: ViolationReport,
+    user: User = Depends(require_candidate),
+    db: Session = Depends(get_db),
+) -> ViolationAck:
+    """Proctoring: the exam page reports leaving full screen or switching away. A browser
+    can't stop that, so it is recorded, shown to the admin, and at the configured limit the
+    attempt is submitted with the answers saved so far."""
+    s = get_settings()
+    attempt, exam = _own_attempt(db, user, attempt_id, lock=True)
+    now = utcnow()
+    if attempt.submitted_at is not None or now >= attempt.deadline:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This attempt has been submitted")
+    if body.kind == "noise":  # flagged for the admin; never ends the attempt
+        attempt.noise_flags += 1
+        audit.record(
+            db,
+            "attempt.noise",
+            actor=user,
+            entity_type="attempt",
+            entity_id=attempt.id,
+            details={"exam_id": exam.id, "count": attempt.noise_flags},
+        )
+        db.commit()
+        return ViolationAck(
+            violations=attempt.violations,
+            max_violations=s.proctor_max_violations,
+            counted=False,
+            submitted=False,
+        )
+    gap = timedelta(seconds=s.proctor_violation_gap_seconds)
+    if attempt.last_violation_at is not None and now - attempt.last_violation_at < gap:
+        attempt.last_violation_at = now
+        db.commit()
+        return ViolationAck(
+            violations=attempt.violations,
+            max_violations=s.proctor_max_violations,
+            counted=False,
+            submitted=False,
+        )
+    attempt.violations += 1
+    attempt.last_violation_at = now
+    audit.record(
+        db,
+        "attempt.violation",
+        actor=user,
+        entity_type="attempt",
+        entity_id=attempt.id,
+        details={"exam_id": exam.id, "kind": body.kind, "count": attempt.violations},
+    )
+    limit_reached = 0 < s.proctor_max_violations <= attempt.violations
+    if limit_reached:
+        db.flush()  # finalize_attempt refreshes the row; keep the new count
+        finalize_attempt(db, exam, attempt, now, auto=True)
+        audit.record(
+            db,
+            "attempt.violation_limit",
+            entity_type="attempt",
+            entity_id=attempt.id,
+            details={"exam_id": exam.id, "violations": attempt.violations},
+        )
+    db.commit()
+    return ViolationAck(
+        violations=attempt.violations,
+        max_violations=s.proctor_max_violations,
+        counted=True,
+        submitted=limit_reached,
+    )
+
+
+@router.put("/attempts/{attempt_id}/snapshot", status_code=204)
+async def upload_snapshot(
+    attempt_id: int,
+    request: Request,
+    user: User = Depends(require_candidate),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Latest webcam frame (raw JPEG body). Only the newest is kept, for the live monitor."""
+    limit = get_settings().max_snapshot_bytes
+    data = b""
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > limit:
+            raise HTTPException(413, f"Snapshot must be at most {limit // 1024} KB")
+    if not data.startswith(b"\xff\xd8\xff"):
+        raise HTTPException(415, "Snapshot must be a JPEG image")
+    attempt, _ = _own_attempt(db, user, attempt_id, lock=True)
+    if attempt.submitted_at is not None or utcnow() >= attempt.deadline:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This attempt has been submitted")
+    attempt.snapshot, attempt.snapshot_at = data, utcnow()
+    db.commit()
+    return Response(status_code=204)

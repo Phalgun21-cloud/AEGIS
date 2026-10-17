@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
@@ -208,6 +209,7 @@ class CandidateExamOut(BaseModel):
     status: ExamStatus
     attempt_id: int | None
     submitted: bool
+    media_required: bool = False  # camera and microphone check before starting
 
 
 class AttemptOut(BaseModel):
@@ -220,6 +222,10 @@ class AttemptOut(BaseModel):
     submitted_at: datetime | None
     answers: dict[str, int]
     questions: list[dict]
+    violations: int = 0
+    max_violations: int = 0  # 0: violations are recorded but never end the attempt
+    media_required: bool = False  # camera and microphone must stay on
+    snapshot_seconds: int = 0
 
 
 class SaveAnswers(BaseModel):
@@ -238,3 +244,17 @@ class SubmissionReceipt(BaseModel):
     submitted_at: datetime
     auto_submitted: bool
     answers_sha256: str
+    violations: int = 0
+    max_violations: int = 0
+
+
+class ViolationReport(BaseModel):
+    # "noise" (sustained sound on the microphone) is only flagged; it never ends the attempt.
+    kind: Literal["fullscreen_exit", "tab_hidden", "window_blur", "camera_off", "noise"]
+
+
+class ViolationAck(BaseModel):
+    violations: int
+    max_violations: int
+    counted: bool  # False when merged into the previous event
+    submitted: bool  # the limit was reached and the attempt was submitted

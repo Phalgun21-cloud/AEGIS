@@ -44,7 +44,7 @@ export function ResultsTab({ exam }: { exam: Exam }) {
         </div>
       </Card>
 
-      <Table head={["Candidate", "Score", "Submitted", "Receipt"]} empty="No attempts.">
+      <Table head={["Candidate", "Score", "Submitted", "Violations", "Receipt"]} empty="No attempts.">
         {r.attempts.map((a) => (
           <tr key={a.candidate_id}>
             <Td>
@@ -56,8 +56,9 @@ export function ResultsTab({ exam }: { exam: Exam }) {
             </Td>
             <Td>
               {fmtDateTime(a.submitted_at)}
-              {a.auto_submitted && <div className="text-xs text-amber-300">auto-submitted at time-up</div>}
+              {a.auto_submitted && <div className="text-xs text-amber-300">auto-submitted</div>}
             </Td>
+            <Td className={a.violations ? "tabular-nums text-rose-300" : "tabular-nums text-slate-500"}>{a.violations}</Td>
             <Td className="font-mono text-xs text-slate-400">
               <span title={a.answers_sha256 ?? ""}>{shortHash(a.answers_sha256)}</span>
             </Td>
