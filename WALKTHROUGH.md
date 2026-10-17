@@ -13,7 +13,7 @@ It works the same locally (http://localhost:3000) and on the deployed site.
   - Locally they are in `TEST_ACCOUNTS.local.md`.
   - On the deployed site, sign in as the admin and create the other three under
     **Users** → **New account**. Each needs an email, a full name, a role and an initial
-    password of 10–72 characters.
+    password of 10–15 characters.
 - **Use a separate browser window for each role.** Each window stays signed in as one
   account. For example, use a normal window for one role and a private/incognito window for
   another, or two different browsers. Otherwise, sign out and back in between steps.

@@ -240,8 +240,17 @@ def test_oversized_passwords_dont_crash(client, make_user, login):
     h = login(user)
     body = {"email": "u@example.com", "full_name": "U", "role": "author", "password": "é" * 40}
     r = client.post("/users", json=body, headers=h)
-    assert r.status_code == 422  # 80 bytes: bcrypt would silently ignore the tail
-    assert "72 bytes" in r.text
+    assert r.status_code == 422  # over the 15-character account limit
+
+
+@pytest.mark.parametrize(
+    ("password", "status"),
+    [("p" * 9, 422), ("p" * 10, 201), ("p" * 15, 201), ("p" * 16, 422)],
+)
+def test_password_length_limits(client, make_user, login, password, status):
+    h = login(make_user(Role.ADMIN))
+    body = {"email": "u@example.com", "full_name": "U", "role": "candidate", "password": password}
+    assert client.post("/users", json=body, headers=h).status_code == status
 
 
 def test_request_body_size_limit(client, make_user, login, monkeypatch):

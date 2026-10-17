@@ -18,17 +18,15 @@ from sqlalchemy import select
 from app.core.security import hash_password
 from app.db import SessionLocal
 from app.models import Role, User
+from app.schemas import PASSWORD_MAX, PASSWORD_MIN
 from app.services import audit
 from app.services.vault import generate_private_key_pem
 
 
 def create_user(args: argparse.Namespace) -> int:
-    password = getpass.getpass("Password (min 10 chars): ")
-    if len(password) < 10:
-        print("Password too short.", file=sys.stderr)
-        return 1
-    if len(password.encode()) > 72:
-        print("Password too long (bcrypt uses at most 72 bytes).", file=sys.stderr)
+    password = getpass.getpass(f"Password ({PASSWORD_MIN}-{PASSWORD_MAX} chars): ")
+    if not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
+        print(f"Password must be {PASSWORD_MIN}-{PASSWORD_MAX} characters.", file=sys.stderr)
         return 1
     if getpass.getpass("Repeat password: ") != password:
         print("Passwords do not match.", file=sys.stderr)

@@ -6,6 +6,8 @@ from app.models import Difficulty, ExamStatus, QuestionStatus, Role
 
 _ORM = ConfigDict(from_attributes=True)
 
+PASSWORD_MIN, PASSWORD_MAX = 10, 15
+
 
 # ---------- auth / users ----------
 class Token(BaseModel):
@@ -26,16 +28,10 @@ class UserOut(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=10, max_length=72)
+    # Account policy: 10-15 characters, for every role. (15 characters is at most 60 bytes,
+    # inside bcrypt's 72-byte limit, so nothing is ever silently truncated.)
+    password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
     role: Role
-
-    @field_validator("password")
-    @classmethod
-    def _fits_bcrypt(cls, v: str) -> str:
-        # bcrypt only uses the first 72 bytes; refuse rather than silently ignore the rest.
-        if len(v.encode()) > 72:
-            raise ValueError("password must be at most 72 bytes (fewer for non-ASCII characters)")
-        return v
 
 
 class UserUpdate(BaseModel):

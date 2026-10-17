@@ -147,8 +147,8 @@ $env:DATABASE_SSL_CA = Get-Content D:\aegis-secrets\ca.pem -Raw
 Remove-Item Env:DATABASE_URL, Env:DATABASE_SSL_CA
 ```
 
-It asks for the password twice and doesn't show it. Use 10 or more characters, and at most
-72 bytes, and don't reuse your local password. The last line removes the production
+It asks for the password twice and doesn't show it. Use 10 to 15 characters,
+and don't reuse your local password. The last line removes the production
 connection from that PowerShell window. Every other account is created from the
 Admin → Users page afterwards.
 

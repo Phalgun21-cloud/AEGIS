@@ -57,13 +57,13 @@ export default function UsersPage() {
             <Field label="Email">
               <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </Field>
-            <Field label="Initial password" hint="10–72 characters. Share it with the user securely.">
+            <Field label="Initial password" hint="10–15 characters. Share it with the user securely.">
               <Input
                 type="password"
                 autoComplete="new-password"
                 required
                 minLength={10}
-                maxLength={72}
+                maxLength={15}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />

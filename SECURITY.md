@@ -26,7 +26,7 @@ real examination, someone who did not build it should review it (see the last se
   need `X-AEGIS-CSRF: 1`. Login sets a cookie only when that header is sent, which blocks login
   CSRF. The monitor WebSocket checks `Origin`.
 - **Abuse limits.** Sign-in is limited per IP, and failures are limited per IP and account. Request
-  bodies over 5 MB are refused, and so are passwords over 72 bytes.
+  bodies over 5 MB are refused, and so are account passwords outside 10–15 characters.
 - **Transport and headers.** HSTS and https-only CORS in production, with no-content CSP,
   `X-Frame-Options: DENY`, `nosniff` and `no-store` on the API. Pages get a CSP and anti-framing
   headers. Production refuses to start with a weak JWT secret, a missing vault key, or http

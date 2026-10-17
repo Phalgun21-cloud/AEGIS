@@ -189,7 +189,7 @@ See [SECURITY.md](SECURITY.md) for the security review, threat model and residua
 - **Headers and limits.** The API sends a no-content CSP, `X-Frame-Options: DENY`,
   `nosniff`, `no-referrer`, `Cache-Control: no-store` and, in production, HSTS. Pages get
   a CSP and the same framing protections. Request bodies over `MAX_REQUEST_BYTES`
-  (5 MB) are refused; passwords over bcrypt's 72-byte limit are rejected, not truncated.
+  (5 MB) are refused; account passwords must be 10–15 characters (well inside bcrypt's 72-byte limit, so never truncated).
 - **CORS.** Only the listed origins, methods and headers. In production `CORS_ORIGINS`
   must be `https://` only, and secrets and the vault key must be set, or the API won't start.
 - **Concurrency.** Releasing, closing and submitting are compare-and-set updates, so when

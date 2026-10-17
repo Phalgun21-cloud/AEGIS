@@ -162,7 +162,7 @@ def main() -> None:
                 if email in taken:
                     continue
                 taken.add(email)
-                pw = secrets.token_urlsafe(12)
+                pw = secrets.token_urlsafe(9)  # 12 characters (accounts allow 10-15)
                 u = admin.ok("POST", "/users", json={
                     "email": email, "full_name": name, "password": pw, "role": role,
                 })

@@ -39,7 +39,7 @@ def test_admin_creates_users_others_cannot(client, make_user, login):
     body = {
         "email": "New.Reviewer@Example.com",
         "full_name": "New Reviewer",
-        "password": "long-enough-pass",
+        "password": "long-enough",
         "role": "reviewer",
     }
     r = client.post("/users", json=body, headers=admin_h)
