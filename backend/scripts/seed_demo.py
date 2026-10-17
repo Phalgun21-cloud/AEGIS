@@ -3,7 +3,7 @@
 Creates authors, reviewers and candidates; writes ~90 questions and runs them through review
 (most approved into the vault, some rejected, some left in the queue or as drafts); schedules
 exams in every state (draft, sealed upcoming, live, closed with results) and has the
-candidates take them. Takes about 5 minutes, because closed exams have to really run.
+candidates take them. Takes about 10 minutes, because the closed exams really have to run.
 
 It only uses the API as an admin would, so it works the same locally and on the deployed site
 (through the web app's /api proxy). Run it once per deployment; it stops if the demo accounts
@@ -48,11 +48,21 @@ class Api:
         self.base = base.rstrip("/")
         self.http = httpx.Client(timeout=120)
         self.token = token
+        self.retried = False  # the last call was resent after a dropped connection
 
     def call(self, method: str, path: str, **kw) -> httpx.Response:
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
+        self.retried = False
         for attempt in range(6):
-            r = self.http.request(method, self.base + path, headers=headers, **kw)
+            try:
+                r = self.http.request(method, self.base + path, headers=headers, **kw)
+            except httpx.TransportError as exc:  # dropped connection, server restarting
+                if attempt == 5:
+                    sys.exit(f"{method} {path}: connection kept failing ({exc})")
+                print(f"  connection dropped ({exc}); retrying...", flush=True)
+                self.retried = True
+                time.sleep(10 * (attempt + 1))
+                continue
             if r.status_code == 429:  # sign-in throttle: wait as told
                 time.sleep(int(r.headers.get("Retry-After", "10")) + 1)
                 continue
@@ -64,6 +74,8 @@ class Api:
 
     def ok(self, method: str, path: str, **kw):
         r = self.call(method, path, **kw)
+        if r.status_code == 409 and self.retried:
+            return None  # the first send went through after all (e.g. already approved)
         if r.status_code >= 400:
             sys.exit(f"{method} {path} failed: {r.status_code} {r.text[:500]}")
         return r.json() if r.content else None
@@ -104,6 +116,8 @@ def main() -> None:
     ap.add_argument("--candidates", type=int, default=30)
     ap.add_argument("--out", default=str(REPO / "demo-credentials.local.md"),
                     help="where the demo accounts' passwords are written")
+    ap.add_argument("--again", action="store_true",
+                    help="seed again where the demo data already exists")
     ap.add_argument("--seed", type=int, default=None, help="random seed (names, answers)")
     args = ap.parse_args()
     rng = random.Random(args.seed)
@@ -117,9 +131,21 @@ def main() -> None:
     if admin.ok("GET", "/auth/me")["role"] != "admin":
         sys.exit(f"{args.admin_email} is not an admin")
 
-    existing = {u["email"] for u in admin.ok("GET", "/users")}
-    if any(e.startswith("demo.") and e.endswith("@" + DOMAIN) for e in existing):
-        sys.exit("Demo accounts already exist here; the demo data has been seeded before.")
+    def is_demo(email: str) -> bool:
+        return email.startswith("demo.") and email.endswith("@" + DOMAIN)
+
+    users = admin.ok("GET", "/users")
+    seeded = any(e["title"] == "Physics Practice Session" for e in admin.ok("GET", "/exams"))
+    if seeded and not args.again:
+        sys.exit("The demo data has been seeded here before. Use --again to add another set.")
+    # Accounts from an earlier run are switched off: their passwords may never have been
+    # saved (a run that stopped part-way), and this run makes a fresh set.
+    old = [u for u in users if is_demo(u["email"]) and u["is_active"]]
+    for u in old:
+        admin.ok("PATCH", f"/users/{u['id']}", json={"is_active": False})
+    if old:
+        print(f"Deactivated {len(old)} demo accounts from an earlier run.", flush=True)
+    taken = {u["email"] for u in users}
 
     # ---------- users ----------
     print("Creating users...", flush=True)
@@ -128,13 +154,27 @@ def main() -> None:
     accounts: dict[str, list[dict]] = {}
     for role, n in plan:
         accounts[role] = []
-        for i, name in enumerate(make_people(rng, n, used), start=1):
-            email = f"demo.{role}{i:02d}@{DOMAIN}"
-            pw = secrets.token_urlsafe(12)
-            u = admin.ok("POST", "/users",
-                         json={"email": email, "full_name": name, "password": pw, "role": role})
+        number = 0
+        for name in make_people(rng, n, used):
+            while True:
+                number += 1
+                email = f"demo.{role}{number:02d}@{DOMAIN}"
+                if email in taken:
+                    continue
+                taken.add(email)
+                pw = secrets.token_urlsafe(12)
+                u = admin.ok("POST", "/users", json={
+                    "email": email, "full_name": name, "password": pw, "role": role,
+                })
+                if u is not None:
+                    break
+                # Created on a send whose reply was lost, so its password is unknown here:
+                # switch that account off and use the next number.
+                for lost in admin.ok("GET", f"/users?role={role}"):
+                    if lost["email"] == email:
+                        admin.ok("PATCH", f"/users/{lost['id']}", json={"is_active": False})
             accounts[role].append({"id": u["id"], "email": email, "name": name, "password": pw})
-    write_credentials(Path(args.out), args.base_url, accounts)
+            write_credentials(Path(args.out), args.base_url, accounts)  # saved as we go
     print(f"  {sum(len(v) for v in accounts.values())} users; passwords in {args.out}", flush=True)
 
     sessions = {
@@ -219,10 +259,10 @@ def main() -> None:
 
     # These run now: three short quizzes that close within minutes, and a long live session.
     start = datetime.now(UTC) + timedelta(seconds=90)
-    quiz_end = start + timedelta(minutes=3)
+    quiz_end = start + timedelta(minutes=5)
     quizzes = [
-        exam(f"{s} Weekly Quiz", s, start, 2, end=quiz_end,
-             instructions="Short practice quiz. Two minutes.")
+        exam(f"{s} Weekly Quiz", s, start, 4, end=quiz_end,
+             instructions="Short practice quiz. Four minutes.")
         for s in BANK
     ]
     live = exam("Physics Practice Session", "Physics", start, 45, end=start + timedelta(hours=6),
@@ -231,13 +271,24 @@ def main() -> None:
           f"{start:%H:%M:%S} UTC", flush=True)
 
     # ---------- candidates take the exams ----------
+    print("Signing candidates in...", flush=True)  # before opening: sign-in is the slow part
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        apis = dict(zip(
+            [c["email"] for c in accounts["candidate"]],
+            pool.map(lambda c: root.login(c["email"], c["password"]), accounts["candidate"]),
+        ))
     wait_until(start + timedelta(seconds=3), "for the exams to open")
     print("Candidates taking exams...", flush=True)
     ability = {c["email"]: rng.uniform(0.35, 0.95) for c in accounts["candidate"]}
 
     def take(api: Api, cand: dict, exam_id: int, answer_share: float, submit: bool,
              r: random.Random) -> bool:
-        att = api.ok("POST", f"/candidate/exams/{exam_id}/start")
+        r_start = api.call("POST", f"/candidate/exams/{exam_id}/start")
+        if r_start.status_code == 409:
+            return False  # already closed (a very slow server)
+        if r_start.status_code >= 400:
+            sys.exit(f"start failed: {r_start.status_code} {r_start.text[:300]}")
+        att = r_start.json()
         answers = {}
         for q in att["questions"]:
             if r.random() > answer_share:
@@ -259,8 +310,7 @@ def main() -> None:
 
     def candidate(cand: dict, plan: list[tuple], seed: float) -> int:
         r = random.Random(seed)
-        api = root.login(cand["email"], cand["password"])  # one sign-in per candidate
-        return sum(take(api, cand, *job, r) for job in plan)
+        return sum(take(apis[cand["email"]], cand, *job, r) for job in plan)
 
     work = []
     for c in accounts["candidate"]:
