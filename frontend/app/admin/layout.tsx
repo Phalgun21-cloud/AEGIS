@@ -2,9 +2,10 @@ import { AppShell } from "@/components/AppShell";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
-  { href: "/admin/exams", label: "Exams" },
+  { href: "/admin/exams", label: "Exams & Scheduling" },
   { href: "/admin/bank", label: "Question Bank" },
-  { href: "/admin/users", label: "Users" },
+  { href: "/admin/users", label: "Users & Roles" },
+  { href: "/admin/monitoring", label: "Live Proctoring" },
   { href: "/admin/audit", label: "Audit Logs" },
 ];
 

@@ -1,4 +1,27 @@
 export type Role = "admin" | "author" | "reviewer" | "candidate";
+
+export type QuestionType =
+  | "mcq_single"
+  | "mcq_multiple"
+  | "true_false"
+  | "short_answer"
+  | "numerical"
+  | "long_answer";
+
+export type PaletteStatus =
+  | "not_visited"
+  | "unanswered"
+  | "answered"
+  | "marked_for_review"
+  | "answered_and_marked";
+
+export type EvaluationStatus =
+  | "correct"
+  | "incorrect"
+  | "unanswered"
+  | "partial"
+  | "pending_evaluation";
+
 export type Difficulty = "easy" | "medium" | "hard";
 export type QuestionStatus = "draft" | "submitted" | "rejected" | "approved";
 export type ExamStatus = "draft" | "sealed" | "live" | "closed";
@@ -18,6 +41,8 @@ export type QuestionMeta = {
   topic: string;
   difficulty: Difficulty;
   marks: number;
+  negative_marks?: number;
+  question_type?: QuestionType;
   status: QuestionStatus;
   review_feedback: string | null;
   reviewed_by: number | null;
@@ -31,6 +56,10 @@ export type Question = QuestionMeta & {
   stem: string | null;
   options: string[] | null;
   correct_option: number | null;
+  correct_options?: number[];
+  correct_text?: string;
+  tolerance?: number;
+  max_words?: number;
   explanation: string | null;
   has_image: boolean;
 };
@@ -40,9 +69,15 @@ export type QuestionInput = {
   topic: string;
   difficulty: Difficulty;
   marks: number;
+  negative_marks?: number;
+  question_type?: QuestionType;
   stem: string;
   options: string[];
   correct_option: number;
+  correct_options?: number[];
+  correct_text?: string;
+  tolerance?: number;
+  max_words?: number;
   explanation: string | null;
 };
 
@@ -73,6 +108,11 @@ export type Exam = {
   created_by: number;
   paper_sha256: string | null;
   total_marks: number | null;
+  shuffle_questions?: boolean;
+  shuffle_options?: boolean;
+  negative_marking?: boolean;
+  negative_penalty?: number;
+  allocated_questions?: PaperQuestion[];
   generated_at: string | null;
   released_at: string | null;
   blueprint: BlueprintItem[];
@@ -204,24 +244,39 @@ export type CandidateExam = {
   media_required: boolean;
 };
 
+export type AnswerValue = number | number[] | string;
+
 export type PaperQuestion = {
   question_id: number;
   number: number;
   marks: number;
+  negative_marks?: number;
+  question_type?: QuestionType;
+  tolerance?: number;
+  max_words?: number;
   stem: string;
-  options: string[];
+  options?: string[];
   image: { mime: string; data: string } | null;
+  correct_option?: number;
+  correct_options?: number[];
+  correct_text?: string;
 };
 
 export type Attempt = {
   attempt_id: number;
   exam_id: number;
   title: string;
+  subject?: string;
+  instructions?: string;
+  candidate_name?: string;
+  candidate_id?: number;
+  total_marks?: number;
   server_time: string;
   deadline: string;
   remaining_seconds: number;
   submitted_at: string | null;
-  answers: Record<string, number>;
+  answers: Record<string, AnswerValue>;
+  marked_for_review?: number[];
   questions: PaperQuestion[];
   violations: number;
   max_violations: number;

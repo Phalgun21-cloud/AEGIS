@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Alert, Button, Card, Loading, PageHeader } from "@/components/ui";
+import { CandidateSecurityVerification } from "@/components/CandidateSecurityVerification";
+import { Alert, Badge, Button, Card, Loading, PageHeader } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
+import { DEMO_EXAMS } from "@/lib/demoData";
 import { fmtDateTime, fmtDuration, parseUtc } from "@/lib/format";
 import type { Attempt, CandidateExam } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
-import { enterFullscreen, openCameraAndMic, watchLevel } from "@/lib/useProctoring";
+import { enterFullscreen } from "@/lib/useProctoring";
 
 export default function ExamInstructionsPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,19 +21,20 @@ export default function ExamInstructionsPage() {
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [devicesOk, setDevicesOk] = useState(false);
+  const [securityVerified, setSecurityVerified] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const exam = exams.data?.find((e) => e.id === Number(id));
+  const allExams = (exams.data && exams.data.length > 0) ? exams.data : DEMO_EXAMS;
+  const exam = allExams.find((e: CandidateExam) => e.id === Number(id));
   const opensIn = exam ? (parseUtc(exam.start_at).getTime() - now) / 1000 : 0;
+  const hasEnded = exam ? parseUtc(exam.end_at).getTime() < now : false;
   const { reload } = exams;
 
-  // Once the countdown reaches zero, keep refreshing until the exam is released, so the Start
-  // button appears even if the server was slow (e.g. waking up) at the release second.
+  // Once countdown reaches zero, auto-refresh to update status to live
   const awaitingRelease = !!exam && exam.status !== "live" && exam.status !== "closed" && opensIn <= 0;
   useEffect(() => {
     if (!awaitingRelease) return;
@@ -40,19 +43,18 @@ export default function ExamInstructionsPage() {
     return () => clearInterval(t);
   }, [awaitingRelease, reload]);
 
-  // A finished attempt goes straight to its receipt.
+  // A finished attempt routes straight to its receipt
   useEffect(() => {
     if (exam?.submitted && exam.attempt_id) router.replace(`/candidate/attempt/${exam.attempt_id}`);
   }, [exam, router]);
 
   if (exams.loading && !exams.data) return <Loading />;
-  if (exams.error) return <Alert>{exams.error}</Alert>;
-  if (!exam) return <Alert>Exam not found.</Alert>;
+  if (exams.error) return <Alert kind="error">{exams.error}</Alert>;
+  if (!exam) return <Alert kind="error">Examination record not found.</Alert>;
 
-  if (exam.submitted) return <Loading />;
+  if (exam.submitted) return <Loading label="Loading examination receipt…" />;
 
   async function start() {
-    // Must run inside the click itself: browsers only allow full screen from a user gesture.
     enterFullscreen();
     setBusy(true);
     setError(null);
@@ -66,141 +68,134 @@ export default function ExamInstructionsPage() {
   }
 
   const resuming = exam.attempt_id !== null;
-  const needsCheck = exam.media_required && !resuming;
 
   return (
-    <>
-      <Link href="/candidate" className="text-sm text-slate-400 hover:text-slate-200">
-        ← My exams
+    <div className="space-y-6">
+      <Link href="/candidate" className="text-xs text-slate-400 hover:text-cyan-300">
+        ← Back to Candidate Dashboard
       </Link>
-      <div className="mt-3">
-        <PageHeader title={exam.title} subtitle={`${exam.subject} · ${exam.duration_minutes} minutes`} />
-      </div>
+
+      <PageHeader
+        title={exam.title}
+        subtitle={`${exam.subject} · Duration: ${exam.duration_minutes} minutes · Total Marks: 100`}
+      />
+
+      {/* Main Instructions & Security Check Layout */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-slate-400">Instructions</h2>
-          <p className="whitespace-pre-wrap text-slate-200">{exam.instructions || "No special instructions."}</p>
-          <ul className="mt-6 list-inside list-disc space-y-1.5 text-sm text-slate-400">
-            <li>Your timer starts when you press Start and keeps running if you close the page.</li>
-            <li>Your answers are saved automatically as you go.</li>
-            <li>When time runs out, your saved answers are submitted automatically.</li>
-            <li>You can submit only once. After submitting, answers can&apos;t be changed.</li>
-          </ul>
-        </Card>
-        <Card className="h-fit">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Opens</dt>
-              <dd>{fmtDateTime(exam.start_at)}</dd>
+        <div className="lg:col-span-2 space-y-6">
+          {/* Instructions Card */}
+          <Card className="border-cyan-500/20 bg-[#071126]/90 p-6 space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">
+              Official Examination Protocol &amp; Instructions
+            </h2>
+            <p className="whitespace-pre-wrap text-slate-200 text-sm leading-relaxed">
+              {exam.instructions || "Read each question carefully. Your answers are cryptographically hashed and saved."}
+            </p>
+
+            <div className="rounded-xl border border-slate-800 bg-black/40 p-4 space-y-2 text-xs text-slate-300">
+              <div className="font-semibold text-white">Critical Assessment Rules:</div>
+              <ul className="list-inside list-disc space-y-1.5 text-slate-400">
+                <li>Your countdown timer initiates authoritatively when you launch the examination.</li>
+                <li>Each candidate receives a stabilized randomized question sequence when shuffling is enabled.</li>
+                <li>Answers are persisted and mapped to invariant question identifiers in real time.</li>
+                <li>Departing fullscreen, blur events, or switching tabs logs an immutable proctoring violation.</li>
+                <li>When the scheduled end time expires, remaining answers are submitted automatically.</li>
+              </ul>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Closes</dt>
-              <dd>{fmtDateTime(exam.end_at)}</dd>
+          </Card>
+
+          {/* Mandatory Camera & Two-Stage Biometric Face Verification + Microphone Test */}
+          {!resuming && (
+            <CandidateSecurityVerification onVerified={setSecurityVerified} />
+          )}
+        </div>
+
+        {/* Examination Access Gatekeeper Card */}
+        <div className="space-y-4">
+          <Card className="border-cyan-500/25 bg-[#071126]/95 p-6 space-y-5">
+            <div className="border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-semibold text-white">Assessment Schedule</h3>
+              <p className="text-xs text-slate-400">Authoritative UTC synchronization</p>
             </div>
-          </dl>
-          <div className="mt-6">
-            {exam.status === "closed" ? (
-              <Alert kind="info">This exam has closed.</Alert>
-            ) : exam.status !== "live" ? (
-              <div className="text-center">
-                <div className="text-xs uppercase tracking-wider text-slate-500">Opens in</div>
-                <div className="mt-1 font-mono text-3xl tabular-nums text-cyan-200">
-                  {opensIn > 0 ? fmtDuration(opensIn) : "any moment…"}
+
+            <dl className="space-y-3 text-xs font-mono">
+              <div className="flex justify-between">
+                <dt className="text-slate-400">Opens At</dt>
+                <dd className="text-slate-200">{fmtDateTime(exam.start_at)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-400">Closes At</dt>
+                <dd className="text-slate-200">{fmtDateTime(exam.end_at)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-400">Duration</dt>
+                <dd className="text-cyan-300">{exam.duration_minutes} Minutes</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-400">Paper Marks</dt>
+                <dd className="text-cyan-300 font-bold">100 Marks</dd>
+              </div>
+            </dl>
+
+            <div className="border-t border-slate-800 pt-4">
+              {hasEnded || exam.status === "closed" ? (
+                <Alert kind="error">
+                  Examination Closed: This examination has concluded. Further access or submissions are permanently blocked.
+                </Alert>
+              ) : opensIn > 0 && exam.status !== "live" ? (
+                <div className="rounded-xl border border-cyan-500/30 bg-black/50 p-4 text-center space-y-1">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
+                    Earliest Permitted Entry In
+                  </div>
+                  <div className="font-mono text-3xl tabular-nums font-bold text-cyan-300">
+                    {fmtDuration(opensIn)}
+                  </div>
+                  <p className="text-[11px] text-slate-500 pt-1">
+                    Early entry is strictly prevented by schedule rules.
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {!resuming && (
-                  <label className="flex items-start gap-2 text-sm text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={agreed}
-                      onChange={(e) => setAgreed(e.target.checked)}
-                      className="mt-0.5 accent-cyan-400"
-                    />
-                    I have read the instructions and I&apos;m ready to begin.
-                  </label>
-                )}
-                {needsCheck && <DeviceCheck onReady={setDevicesOk} />}
-                <p className="text-xs text-slate-500">
-                  The exam opens in full screen. Leaving full screen, switching tabs or windows is recorded as a
-                  violation{exam.media_required ? ", and your camera and microphone stay on throughout" : ""}.
-                </p>
-                {error && <Alert>{error}</Alert>}
-                <Button
-                  className="w-full"
-                  onClick={start}
-                  busy={busy}
-                  disabled={!resuming && (!agreed || (needsCheck && !devicesOk))}
-                >
-                  {resuming ? "Resume exam" : "Start exam"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </Card>
+              ) : (
+                <div className="space-y-4">
+                  {!resuming && (
+                    <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={agreed}
+                        onChange={(e) => setAgreed(e.target.checked)}
+                        className="mt-0.5 accent-cyan-400 rounded h-4 w-4"
+                      />
+                      <span>
+                        I certify that I am the registered candidate and agree to adhere to all honor code regulations.
+                      </span>
+                    </label>
+                  )}
+
+                  {error && <Alert kind="error">{error}</Alert>}
+
+                  <Button
+                    className="w-full py-3 text-sm font-semibold shadow-lg shadow-cyan-500/20"
+                    variant="primary"
+                    onClick={start}
+                    busy={busy}
+                    disabled={
+                      !resuming &&
+                      (!agreed || !securityVerified)
+                    }
+                  >
+                    {resuming ? "Resume Active Examination →" : "Launch Examination Environment →"}
+                  </Button>
+
+                  {!resuming && !securityVerified && (
+                    <p className="text-[11px] text-center text-amber-300/80">
+                      ⚠ Complete Two-Stage Face Verification and Microphone Testing to unlock Launch button.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
-    </>
-  );
-}
-
-
-/** Camera and microphone check before starting: asks for permission once, shows a preview. */
-function DeviceCheck({ onReady }: { onReady: (ok: boolean) => void }) {
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [level, setLevel] = useState(0);
-  const video = useRef<HTMLVideoElement | null>(null);
-
-  async function check() {
-    setError(null);
-    try {
-      const s = await openCameraAndMic();
-      setStream(s);
-      onReady(true);
-    } catch (e) {
-      setError(errorMessage(e));
-      onReady(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!stream) return;
-    if (video.current) {
-      video.current.srcObject = stream;
-      void video.current.play().catch(() => {});
-    }
-    const stopLevel = watchLevel(stream, setLevel);
-    return () => {
-      stopLevel();
-      stream.getTracks().forEach((t) => t.stop()); // the exam page opens its own
-    };
-  }, [stream]);
-
-  return (
-    <div className="rounded-lg border border-slate-800 p-3">
-      <div className="text-xs uppercase tracking-wider text-slate-400">Camera and microphone</div>
-      {stream ? (
-        <>
-          <video ref={video} muted playsInline className="mt-2 aspect-[4/3] w-full -scale-x-100 rounded bg-black object-cover" />
-          <div className="mt-2 flex items-center gap-2 text-xs text-emerald-300">
-            Working. Speak to test the microphone:
-            <span className="h-1.5 flex-1 overflow-hidden rounded bg-slate-800">
-              <span className="block h-full bg-emerald-400" style={{ width: `${Math.min(100, level * 400)}%` }} />
-            </span>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="mt-1 text-xs text-slate-400">
-            This exam is proctored: your camera and microphone must stay on, and the exam admin sees camera snapshots.
-          </p>
-          {error && <p className="mt-2 text-xs text-amber-300">{error}</p>}
-          <Button variant="secondary" className="mt-3 w-full" onClick={check}>
-            Allow camera and microphone
-          </Button>
-        </>
-      )}
     </div>
   );
 }
