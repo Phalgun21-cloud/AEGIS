@@ -37,6 +37,8 @@ export default function ExamsPage() {
   const exams = useApi<Exam[]>("/exams");
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Captured once on load: calling Date.now() while rendering makes renders impure.
+  const [now] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -144,7 +146,6 @@ export default function ExamsPage() {
   }
 
   function getStatusBadge(status: ExamStatus, startAt: string, endAt: string) {
-    const now = Date.now();
     const start = new Date(startAt).getTime();
     const end = new Date(endAt).getTime();
 

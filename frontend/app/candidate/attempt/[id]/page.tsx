@@ -39,6 +39,8 @@ export default function AttemptPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const deadlineMs = useRef(0);
   const finished = useRef(false);
+  // The retry timer calls the latest flush through this ref (a callback can't name itself).
+  const flushRef = useRef<() => Promise<void>>(async () => {});
 
   const load = useCallback(async () => {
     try {
@@ -113,9 +115,13 @@ export default function AttemptPage() {
       }
       pending.current = { ...batch, ...pending.current };
       setSaveState("error");
-      saveTimer.current = setTimeout(() => void flush(), RETRY_MS);
+      saveTimer.current = setTimeout(() => void flushRef.current(), RETRY_MS);
     }
   }, [id, submit]);
+
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
 
   function setAnswer(questionId: number, value: AnswerValue | null) {
     if (finished.current) return;
