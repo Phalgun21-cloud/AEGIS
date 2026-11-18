@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-import { Alert, Badge, Button, Card, Field, Input, PasswordInput, cx } from "@/components/ui";
+import { Alert, Button, Card, Field, Input, PasswordInput } from "@/components/ui";
 import { errorMessage } from "@/lib/api";
 import { HOME, useAuth } from "@/lib/auth";
 

@@ -1,10 +1,13 @@
 import logging
+import os
 import secrets
+import smtplib
+import ssl
 from datetime import UTC, datetime, timedelta
+from email.message import EmailMessage
 from typing import Any
 
 from app.core.config import get_settings
-from app.services.mailer import send_email
 
 log = logging.getLogger("aegis.otp")
 
@@ -41,7 +44,38 @@ def send_otp_to_email(to_email: str, code: str) -> bool:
     """
     print(f"\n[AEGIS OTP DISPATCH] Email: {to_email} | Code: {code}\n", flush=True)
     log.info("[OTP DISPATCH] Email: %s | Code: %s", to_email, code)
-    return send_email(to_email, subject, text, html)
+
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_password = os.environ.get("SMTP_PASSWORD", "")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_from = os.environ.get("SMTP_FROM", smtp_user or "noreply@aegis-exams.org")
+
+    if not (smtp_host and smtp_user and smtp_password):
+        return True
+
+    try:
+        msg = EmailMessage()
+        msg["From"] = smtp_from
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.set_content(text)
+        msg.add_alternative(html, subtype="html")
+
+        context = ssl.create_default_context()
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=15) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                server.starttls(context=context)
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        return True
+    except Exception as exc:
+        log.warning("Sending email to %s failed: %s", to_email, exc)
+        return False
 
 
 def request_otp(email: str) -> dict[str, Any]:
