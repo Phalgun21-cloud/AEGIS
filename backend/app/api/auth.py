@@ -93,14 +93,14 @@ def me(user: User = Depends(get_current_user)) -> User:
 
 
 @router.post("/auth/otp/send")
-def send_otp_endpoint(body: OtpRequest) -> dict:
-    """Send a 6-digit verification code to the requested email address."""
+def send_otp_endpoint(body: OtpRequest, admin: User = Depends(require_admin)) -> dict:
+    """Send a 6-digit code to a new user's address (admin, while creating the account)."""
     return request_otp(body.email)
 
 
 @router.post("/auth/otp/verify")
-def verify_otp_endpoint(body: OtpVerify) -> dict:
-    """Verify the 6-digit security code for the email address."""
+def verify_otp_endpoint(body: OtpVerify, admin: User = Depends(require_admin)) -> dict:
+    """Check the code the new user received (admin only; never an open email relay)."""
     res = verify_otp_code(body.email, body.otp)
     if not res.get("ok"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, res.get("error", "Verification failed"))
