@@ -130,8 +130,6 @@ def create_user(
         password_hash=hash_password(body.password),
         role=body.role,
         is_active=True,
-        email_verified=is_verified,
-        email_verified_at=utcnow() if is_verified else None,
     )
     db.add(user)
     db.flush()

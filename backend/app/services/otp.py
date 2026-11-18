@@ -1,6 +1,6 @@
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.core.config import get_settings
@@ -16,7 +16,7 @@ MAX_ATTEMPTS = 5
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def send_otp_to_email(to_email: str, code: str) -> bool:
@@ -113,6 +113,4 @@ def validate_verification_token(email: str, token: str | None) -> bool:
         return False
     if not token or record.get("verification_token") != token:
         return False
-    if record.get("token_expires_at") and _now() > record["token_expires_at"]:
-        return False
-    return True
+    return not bool(record.get("token_expires_at") and _now() > record["token_expires_at"])
