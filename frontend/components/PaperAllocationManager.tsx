@@ -21,69 +21,10 @@ import {
 } from "@/lib/marking";
 import type { PaperQuestion, QuestionType } from "@/lib/types";
 
-// Initial standard demo questions for 100-mark paper allocation demonstration
-const INITIAL_DEMO_PAPER_QUESTIONS: PaperQuestion[] = [
-  {
-    question_id: 101,
-    number: 1,
-    marks: 5,
-    negative_marks: 1.25,
-    question_type: "mcq_single",
-    stem: "Which operating system scheduling algorithm avoids indefinite starvation while prioritizing short execution times?",
-    options: ["First-Come, First-Served", "Shortest Job Next with Aging", "Round Robin", "Priority Scheduling without Aging"],
-    image: null,
-    correct_option: 1,
-  },
-  {
-    question_id: 102,
-    number: 2,
-    marks: 10,
-    negative_marks: 2.5,
-    question_type: "mcq_single",
-    stem: "Explain why virtual memory page faults trigger traps rather than interrupts in the processor pipeline.",
-    options: ["Traps are synchronous software-generated exceptions", "Interrupts are hardware-triggered", "Page faults require MMU reload", "All of the above"],
-    image: null,
-    correct_option: 3,
-  },
-  {
-    question_id: 103,
-    number: 3,
-    marks: 5,
-    negative_marks: 1.0,
-    question_type: "true_false",
-    stem: "Atomic compare-and-swap (CAS) instructions are sufficient to eliminate the ABA problem without pointer version tags.",
-    options: ["True", "False"],
-    image: null,
-    correct_option: 1,
-  },
-  {
-    question_id: 104,
-    number: 4,
-    marks: 20,
-    negative_marks: 5.0,
-    question_type: "mcq_multiple",
-    stem: "Which of the following conditions MUST hold simultaneously for a multi-threaded system deadlock to occur (Coffman conditions)?",
-    options: ["Mutual Exclusion", "Hold and Wait", "Preemption allowed", "Circular Wait"],
-    image: null,
-    correct_options: [0, 1, 3],
-  },
-  {
-    question_id: 105,
-    number: 5,
-    marks: 10,
-    negative_marks: 2.0,
-    question_type: "short_answer",
-    stem: "In cryptographic authentication, what mathematical property ensures that hashing a message is computationally irreversible?",
-    options: [],
-    image: null,
-    correct_text: "Pre-image resistance",
-  },
-];
-
 export function PaperAllocationManager({
-  examTitle = "CS-401: Advanced Operating Systems & Security",
+  examTitle = "Paper allocation plan",
   totalPaperMarks = 100,
-  initialQuestions = INITIAL_DEMO_PAPER_QUESTIONS,
+  initialQuestions = [],
   onSave,
   readOnly = false,
   isReviewer = false,

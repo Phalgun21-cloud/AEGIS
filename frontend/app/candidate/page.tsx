@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import { Alert, Badge, Button, Card, Loading, PageHeader } from "@/components/ui";
-import { DEMO_EXAMS } from "@/lib/demoData";
 import { fmtDateTime } from "@/lib/format";
 import type { CandidateExam } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -18,7 +17,7 @@ function state(e: CandidateExam): { label: string; badge: string; action: string
 export default function CandidateHome() {
   const exams = useApi<CandidateExam[]>("/candidate/exams");
 
-  const examList = (exams.data && exams.data.length > 0) ? exams.data : DEMO_EXAMS;
+  const examList = exams.data ?? [];
 
   return (
     <div className="space-y-6">

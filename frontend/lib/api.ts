@@ -1,22 +1,3 @@
-import {
-  DEMO_ATTEMPT,
-  DEMO_AUDIT_LOGS,
-  DEMO_EXAMS,
-  DEMO_MONITOR_SNAPSHOT,
-  DEMO_QUESTIONS_PAPER,
-  DEMO_REVIEW_QUEUE,
-} from "./demoData";
-import type {
-  Attempt,
-  CandidateExam,
-  MonitorSnapshot,
-  Overview,
-  Question,
-  Receipt,
-  SaveAck,
-  User,
-} from "./types";
-
 // Server components call the backend directly; the browser goes through the /api proxy
 // (see next.config.mjs) so the whole app is served from one origin.
 export const API_URL =
@@ -42,11 +23,6 @@ let sessionActive = false;
 
 export function setSessionActive(active: boolean) {
   sessionActive = active;
-}
-
-export function isDemoSession(): boolean {
-  if (typeof window === "undefined") return false;
-  return Boolean(sessionStorage.getItem("aegis_demo_user"));
 }
 
 export class ApiError extends Error {
@@ -85,135 +61,7 @@ type Options = {
   blob?: Blob;
 };
 
-// In-memory demo state for interactive mutations during demo mode
-const demoState = {
-  answers: { ...DEMO_ATTEMPT.answers } as Record<string, unknown>,
-  submitted: false,
-  questionsQueue: [...DEMO_REVIEW_QUEUE],
-  exams: [...DEMO_EXAMS],
-};
-
-/**
- * Handles mocked responses when operating in frontend Demo Mode
- */
-function handleDemoApi<T>(path: string, opts: Options = {}): T | null {
-  const method = (opts.method ?? (opts.json || opts.form ? "POST" : "GET")).toUpperCase();
-
-  // /candidate/exams
-  if (path === "/candidate/exams") {
-    return demoState.exams as unknown as T;
-  }
-
-  // /candidate/exams/:id/start
-  if (path.match(/^\/candidate\/exams\/\d+\/start$/)) {
-    const attempt: Attempt = {
-      ...DEMO_ATTEMPT,
-      answers: { ...demoState.answers } as Record<string, number>,
-      submitted_at: demoState.submitted ? new Date().toISOString() : null,
-    };
-    return attempt as unknown as T;
-  }
-
-  // /candidate/attempts/:id/answers
-  if (path.match(/^\/candidate\/attempts\/\d+\/answers$/) && method === "PUT") {
-    const payload = opts.json as { answers: Record<string, unknown> };
-    if (payload?.answers) {
-      demoState.answers = { ...demoState.answers, ...payload.answers };
-    }
-    const ack: SaveAck = {
-      saved_at: new Date().toISOString(),
-      answered: Object.keys(demoState.answers).length,
-      remaining_seconds: 35 * 60,
-    };
-    return ack as unknown as T;
-  }
-
-  // /candidate/attempts/:id/submit
-  if (path.match(/^\/candidate\/attempts\/\d+\/submit$/)) {
-    demoState.submitted = true;
-    const receipt: Receipt = {
-      attempt_id: 9001,
-      submitted_at: new Date().toISOString(),
-      auto_submitted: false,
-      answers_sha256: "8f4e2b17a639014cd78932efba0154cc9281734a6bcdef1289456721ea02319f",
-      violations: 0,
-      max_violations: 3,
-    };
-    return receipt as unknown as T;
-  }
-
-  // /candidate/attempts/:id
-  if (path.match(/^\/candidate\/attempts\/\d+$/)) {
-    const attempt: Attempt = {
-      ...DEMO_ATTEMPT,
-      answers: { ...demoState.answers } as Record<string, number>,
-      submitted_at: demoState.submitted ? new Date().toISOString() : null,
-    };
-    return attempt as unknown as T;
-  }
-
-  // /reviews/queue
-  if (path === "/reviews/queue") {
-    return demoState.questionsQueue as unknown as T;
-  }
-
-  // /reviews/:id/approve or reject
-  if (path.match(/^\/reviews\/\d+\/(approve|reject)$/)) {
-    const id = Number(path.split("/")[2]);
-    demoState.questionsQueue = demoState.questionsQueue.filter((q) => q.id !== id);
-    return { ok: true } as unknown as T;
-  }
-
-  // /reviews/:id/similar
-  if (path.match(/^\/reviews\/\d+\/similar$/)) {
-    return [] as unknown as T;
-  }
-
-  // /audit
-  if (path.startsWith("/audit")) {
-    return DEMO_AUDIT_LOGS as unknown as T;
-  }
-
-  // /exams/stats/overview
-  if (path === "/exams/stats/overview") {
-    const overview: Overview = {
-      users: { admin: 3, author: 5, reviewer: 4, candidate: 120 },
-      questions: { approved: 86, submitted: 8, draft: 14, rejected: 3 },
-      exams: { live: 1, sealed: 2, closed: 5, draft: 1 },
-      approved_questions: 86,
-    };
-    return overview as unknown as T;
-  }
-
-  // /exams/:id/monitor
-  if (path.match(/^\/exams\/\d+\/monitor$/) || path.includes("/monitor")) {
-    return DEMO_MONITOR_SNAPSHOT as unknown as T;
-  }
-
-  // /bank/summary
-  if (path === "/bank/summary") {
-    return [
-      { subject: "Cybersecurity", topic: "Vault Protocols", difficulty: "easy", count: 12 },
-      { subject: "Cybersecurity", topic: "Vault Protocols", difficulty: "medium", count: 18 },
-      { subject: "Cybersecurity", topic: "Vault Protocols", difficulty: "hard", count: 8 },
-      { subject: "Computer Science", topic: "Algorithms", difficulty: "medium", count: 24 },
-    ] as unknown as T;
-  }
-
-  return null;
-}
-
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
-  // If in demo mode, serve from demo store when matching mock endpoint
-  if (isDemoSession()) {
-    const mock = handleDemoApi<T>(path, opts);
-    if (mock !== null) {
-      // Simulate light async tick
-      await new Promise((r) => setTimeout(r, 60));
-      return mock;
-    }
-  }
-
   const headers: Record<string, string> = { ...CSRF_HEADERS };
   let body: BodyInit | undefined;
   if (opts.json !== undefined) {
@@ -236,9 +84,6 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
       credentials: "same-origin",
     });
   } catch {
-    // If backend is down and we have a mock fallback, use it
-    const mock = handleDemoApi<T>(path, opts);
-    if (mock !== null) return mock;
     throw new ApiError(0, OFFLINE);
   }
 
@@ -256,8 +101,6 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     }
     // A bare 5xx with no API error body comes from the /api proxy: the backend is down.
     if (detail === null && res.status >= 500) {
-      const mock = handleDemoApi<T>(path, opts);
-      if (mock !== null) return mock;
       detail = OFFLINE;
     }
     throw new ApiError(res.status, detail);

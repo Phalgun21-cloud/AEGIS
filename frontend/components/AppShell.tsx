@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { Badge, Loading, cx } from "@/components/ui";
-import { DEMO_ACCOUNTS } from "@/lib/demoData";
 import { HOME, useAuth } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 
@@ -24,7 +23,7 @@ export function AppShell({
   nav: NavItem[];
   children: React.ReactNode;
 }) {
-  const { user, loading, logout, isDemoMode, switchDemoRole } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -58,12 +57,6 @@ export function AppShell({
           <div className="text-[10px] uppercase tracking-widest text-slate-500 md:mt-1">
             Examination Infrastructure
           </div>
-          {isDemoMode && (
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              DEMO SANDBOX
-            </div>
-          )}
         </div>
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">
@@ -83,30 +76,6 @@ export function AppShell({
           ))}
         </nav>
 
-        {isDemoMode && (
-          <div className="mt-auto hidden border-t border-cyan-500/10 p-3 md:block">
-            <div className="mb-2 text-[10px] uppercase tracking-wider text-slate-500">
-              Switch Role (Demo)
-            </div>
-            <div className="flex flex-col gap-1">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.role}
-                  onClick={() => switchDemoRole(acc.role)}
-                  className={cx(
-                    "flex items-center justify-between rounded px-2 py-1 text-xs text-left transition",
-                    user.role === acc.role
-                      ? "bg-cyan-500/20 text-cyan-200 font-medium"
-                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                  )}
-                >
-                  <span className="truncate">{acc.roleName}</span>
-                  {user.role === acc.role && <span className="text-[10px] text-cyan-400">●</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

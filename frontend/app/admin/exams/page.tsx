@@ -18,7 +18,6 @@ import {
   ValidatedTextarea,
 } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
-import { DEMO_EXAMS } from "@/lib/demoData";
 import { fmtDateTime, fromLocalInput, toLocalInput } from "@/lib/format";
 import type { Exam, ExamStatus } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -58,7 +57,7 @@ export default function ExamsPage() {
     enrolled_count: 50,
   });
 
-  const examList = (exams.data && exams.data.length > 0) ? exams.data : (DEMO_EXAMS as unknown as Exam[]);
+  const examList = exams.data ?? [];
 
   const currentTimeZone = typeof Intl !== "undefined"
     ? Intl.DateTimeFormat().resolvedOptions().timeZone

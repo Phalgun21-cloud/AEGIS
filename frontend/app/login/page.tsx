@@ -7,7 +7,6 @@ import { Suspense, useEffect, useState } from "react";
 import { Alert, Badge, Button, Card, Field, Input, PasswordInput, cx } from "@/components/ui";
 import { ForgotPasswordModal } from "@/components/ForgotPasswordModal";
 import { errorMessage } from "@/lib/api";
-import { DEMO_ACCOUNTS, type DemoAccount } from "@/lib/demoData";
 import { HOME, useAuth } from "@/lib/auth";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,7 +23,6 @@ function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState(params.get("reset") === "success");
   const [busy, setBusy] = useState(false);
-  const [showDemoPicker, setShowDemoPicker] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Follow safe same-site relative path or default role dashboard
@@ -84,14 +82,6 @@ function LoginForm() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function fillDemoAccount(acc: DemoAccount) {
-    setEmail(acc.email);
-    setPassword(acc.passwordHint);
-    setEmailError(null);
-    setPasswordError(null);
-    setServerError(null);
   }
 
   return (
@@ -175,43 +165,6 @@ function LoginForm() {
           setShowForgotModal(false);
         }}
       />
-
-      {/* Demo Accounts Panel */}
-      <div className="mt-6 border-t border-cyan-500/15 pt-5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
-            Demo & Evaluation Access
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowDemoPicker(!showDemoPicker)}
-            className="text-xs text-cyan-400 hover:text-cyan-300 underline"
-          >
-            {showDemoPicker ? "Hide Demo Accounts" : "Show Demo Roles"}
-          </button>
-        </div>
-
-        {showDemoPicker && (
-          <div className="mt-3 space-y-2 rounded-lg bg-black/40 p-3 border border-slate-800">
-            <p className="text-[11px] text-slate-400">
-              Click any role to auto-populate credentials for presentation:
-            </p>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.role}
-                  type="button"
-                  onClick={() => fillDemoAccount(acc)}
-                  className="flex flex-col items-start rounded border border-slate-700/60 bg-white/[0.02] p-2 text-left hover:border-cyan-400 hover:bg-cyan-500/10 transition"
-                >
-                  <span className="text-xs font-semibold text-slate-200">{acc.roleName}</span>
-                  <span className="text-[10px] text-cyan-300/80">{acc.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
 
       <p className="mt-6 text-center text-xs text-slate-500">
         Account authentication is cryptographically audited and verified by AEGIS Vault.

@@ -5,7 +5,6 @@ import { useState } from "react";
 import { Alert, Badge, Button, Card, Field, Input, PageHeader, PasswordInput, Select, Table, Td, ValidatedInput } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { DEMO_ACCOUNTS } from "@/lib/demoData";
 import type { Role, User } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { validateField } from "@/lib/validation";
@@ -29,14 +28,7 @@ export default function UsersPage() {
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
 
   const rawUsers = users.data ?? [];
-  const demoFallback: User[] = DEMO_ACCOUNTS.map((a, i) => ({
-    id: 100 + i,
-    email: a.email,
-    full_name: a.name,
-    role: a.role,
-    is_active: true,
-  }));
-  const displayUsers = rawUsers.length > 0 ? rawUsers : demoFallback;
+  const displayUsers = rawUsers;
   const filteredUsers = filter ? displayUsers.filter((u) => u.role === filter) : displayUsers;
 
   function validate(): boolean {

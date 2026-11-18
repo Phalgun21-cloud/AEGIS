@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from demo_questions import BANK, EXTRA, MARKS
 
 REPO = Path(__file__).resolve().parents[2]
-DOMAIN = "example.org"
+DOMAIN = "aegis-exam.com"
 
 FIRST = ["Aarav", "Diya", "Vihaan", "Ananya", "Arjun", "Isha", "Kabir", "Meera", "Rohan", "Saanvi", "Aditya", "Kavya", "Reyansh", "Priya", "Ishaan", "Nisha", "Vivaan", "Tara", "Dhruv", "Riya", "Arnav", "Zara", "Sai", "Neha", "Krishna", "Pooja", "Yash", "Aisha", "Dev", "Sneha", "Om", "Myra", "Rahul", "Kiara", "Nikhil", "Anika", "Siddharth", "Leela", "Varun", "Asha"]
 LAST = ["Sharma", "Patel", "Iyer", "Reddy", "Kulkarni", "Nair", "Gupta", "Desai", "Joshi", "Menon", "Rao", "Singh", "Kapoor", "Bhat", "Chatterjee", "Pillai", "Mehta", "Das", "Shah", "Verma"]

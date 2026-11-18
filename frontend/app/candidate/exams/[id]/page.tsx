@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { CandidateSecurityVerification } from "@/components/CandidateSecurityVerification";
 import { Alert, Badge, Button, Card, Loading, PageHeader } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
-import { DEMO_EXAMS } from "@/lib/demoData";
 import { fmtDateTime, fmtDuration, parseUtc } from "@/lib/format";
 import type { Attempt, CandidateExam } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -28,7 +27,7 @@ export default function ExamInstructionsPage() {
     return () => clearInterval(t);
   }, []);
 
-  const allExams = (exams.data && exams.data.length > 0) ? exams.data : DEMO_EXAMS;
+  const allExams = exams.data ?? [];
   const exam = allExams.find((e: CandidateExam) => e.id === Number(id));
   const opensIn = exam ? (parseUtc(exam.start_at).getTime() - now) / 1000 : 0;
   const hasEnded = exam ? parseUtc(exam.end_at).getTime() < now : false;
