@@ -13,6 +13,7 @@ from app.api.deps import (
 from app.core.config import get_settings
 from app.core.ratelimit import SlidingWindowLimiter
 from app.core.security import create_access_token, hash_password, verify_password
+from app.core.timeutil import utcnow
 from app.db import get_db
 from app.models import Role, User
 from app.schemas import OtpRequest, OtpVerify, Token, UserCreate, UserOut, UserUpdate
@@ -130,6 +131,8 @@ def create_user(
         password_hash=hash_password(body.password),
         role=body.role,
         is_active=True,
+        email_verified=is_verified,
+        email_verified_at=utcnow() if is_verified else None,
     )
     db.add(user)
     db.flush()
