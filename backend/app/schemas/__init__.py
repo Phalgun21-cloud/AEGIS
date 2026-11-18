@@ -67,6 +67,7 @@ PositiveId = Annotated[int, Field(gt=0, le=2**31 - 1)]
 
 # The longest an exam window may stay open, and the most a paper may hold.
 MAX_WINDOW = timedelta(days=7)
+MIN_DURATION = 10  # minutes a candidate gets, at the least
 MAX_BLUEPRINT_ROWS = 100
 MAX_PAPER_QUESTIONS = 1_000
 
@@ -232,7 +233,7 @@ class ExamCreate(BaseModel):
     title: Title
     subject: Label
     instructions: _text(2_000) = ""
-    duration_minutes: int = Field(ge=1, le=24 * 60)
+    duration_minutes: int = Field(ge=MIN_DURATION, le=24 * 60)
     start_at: datetime
     end_at: datetime | None = None  # defaults to start_at + duration
 
@@ -250,7 +251,7 @@ class ExamUpdate(BaseModel):
     title: Title | None = None
     subject: Label | None = None
     instructions: _text(2_000) | None = None
-    duration_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
+    duration_minutes: int | None = Field(default=None, ge=MIN_DURATION, le=24 * 60)
     start_at: datetime | None = None
     end_at: datetime | None = None
 

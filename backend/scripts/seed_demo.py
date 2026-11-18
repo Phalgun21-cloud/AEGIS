@@ -259,10 +259,10 @@ def main() -> None:
 
     # These run now: three short quizzes that close within minutes, and a long live session.
     start = datetime.now(UTC) + timedelta(seconds=90)
-    quiz_end = start + timedelta(minutes=5)
+    quiz_end = start + timedelta(minutes=11)
     quizzes = [
-        exam(f"{s} Weekly Quiz", s, start, 4, end=quiz_end,
-             instructions="Short practice quiz. Four minutes.")
+        exam(f"{s} Weekly Quiz", s, start, 10, end=quiz_end,
+             instructions="Short practice quiz. Ten minutes.")
         for s in BANK
     ]
     live = exam("Physics Practice Session", "Physics", start, 45, end=start + timedelta(hours=6),

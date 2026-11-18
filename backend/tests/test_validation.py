@@ -206,6 +206,8 @@ def test_exam_rules(client, make_user, login):
     assert post(subject="M").status_code == 422
     assert post(instructions="x" * 2001).status_code == 422
     assert post(duration_minutes=0).status_code == 422
+    assert post(duration_minutes=9).status_code == 422  # under the 10-minute minimum
+    assert post(duration_minutes=10).status_code == 201
     assert post(duration_minutes=24 * 60 + 1).status_code == 422
 
     exam_id = post().json()["id"]

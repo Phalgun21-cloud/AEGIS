@@ -31,7 +31,9 @@ export function ScheduleTab({ exam, onChange }: { exam: Exam; onChange: (e: Exam
         validateField("exam_title", form.title).error,
         validateField("subject_name", form.subject).error,
         validateField("instructions", form.instructions, false).error,
-        validateInteger(form.duration_minutes, 1, 24 * 60, "Duration"),
+        form.duration_minutes < 10
+          ? "Duration must be at least 10 minutes."
+          : validateInteger(form.duration_minutes, 10, 24 * 60, "Duration"),
         !form.start_at || !form.end_at || Number.isNaN(start) || Number.isNaN(end)
           ? "Start and end date/time are required."
           : null,
@@ -98,7 +100,9 @@ export function ScheduleTab({ exam, onChange }: { exam: Exam; onChange: (e: Exam
         <Field label="Duration per candidate (min)">
           <Input
             type="number"
-            min={1}
+            min={10}
+            max={1440}
+            step={1}
             disabled={!editable}
             value={form.duration_minutes}
             onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) })}

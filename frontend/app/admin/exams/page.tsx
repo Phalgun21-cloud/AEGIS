@@ -88,8 +88,10 @@ export default function ExamsPage() {
     }
 
     // Validate Duration
-    if (!form.duration_minutes || form.duration_minutes <= 0) {
-      errs.duration_minutes = "Duration must be at least 1 minute.";
+    const durationError = validateInteger(form.duration_minutes, 10, 24 * 60, "Duration");
+    if (durationError) {
+      errs.duration_minutes =
+        form.duration_minutes < 10 ? "Duration must be at least 10 minutes." : durationError;
     }
 
     // Validate Window Minutes
@@ -248,12 +250,14 @@ export default function ExamsPage() {
               <Field
                 label="Candidate Duration (Minutes)"
                 required
-                hint="Time limit once started"
+                hint="Time limit once started (10–1440 minutes)"
                 error={fieldErrors.duration_minutes}
               >
                 <Input
                   type="number"
-                  min={1}
+                  min={10}
+                  max={1440}
+                  step={1}
                   value={form.duration_minutes}
                   onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) })}
                 />
