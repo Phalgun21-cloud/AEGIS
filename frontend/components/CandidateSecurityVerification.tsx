@@ -41,6 +41,8 @@ function extractFaceDescriptor(ctx: CanvasRenderingContext2D, width: number, hei
   const bins = new Array(32).fill(0);
   let centerLuma = 0;
   let perimeterLuma = 0;
+  let centerCount = 0;
+  let perimeterCount = 0;
   let edgeEnergy = 0;
 
   const cx = width / 2;
@@ -63,8 +65,10 @@ function extractFaceDescriptor(ctx: CanvasRenderingContext2D, width: number, hei
       const dist2 = Math.pow(x - cx, 2) + Math.pow(y - cy, 2);
       if (dist2 <= r2) {
         centerLuma += luma;
+        centerCount++;
       } else {
         perimeterLuma += luma;
+        perimeterCount++;
       }
 
       // Horizontal edge derivative
@@ -85,8 +89,13 @@ function extractFaceDescriptor(ctx: CanvasRenderingContext2D, width: number, hei
   const normalizedVector = bins.map((v) => v / norm);
 
   // Center-weighted facial contrast check
-  const centerRatio = centerLuma / Math.max(1, perimeterLuma);
-  const faceDetected = avgIllumination > 30 && avgIllumination < 235 && clarity > 4.5 && centerRatio > 0.45;
+  // Compare average brightness, not totals: the centre circle is only ~29% of the frame, so
+  // comparing sums made a lit face in front of a bright wall or cupboard fail every time.
+  const centerMean = centerLuma / Math.max(1, centerCount);
+  const perimeterMean = perimeterLuma / Math.max(1, perimeterCount);
+  const centerRatio = centerMean / Math.max(1, perimeterMean);
+  // Ordinary laptop webcams are soft (edge energy ~2-4), so 4.5 rejected real faces.
+  const faceDetected = avgIllumination > 30 && avgIllumination < 235 && clarity > 2 && centerRatio > 0.45;
   const multipleFaces = clarity > 40 && centerRatio < 0.25;
 
   return {
