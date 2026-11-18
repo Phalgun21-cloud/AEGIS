@@ -73,7 +73,7 @@ def send_otp_to_email(to_email: str, code: str) -> bool:
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
         return True
-    except Exception as exc:
+    except (smtplib.SMTPException, OSError) as exc:
         log.warning("Sending email to %s failed: %s", to_email, exc)
         return False
 
