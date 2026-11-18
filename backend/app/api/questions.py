@@ -316,11 +316,22 @@ def question_bank(
 
 @router.get("/bank/summary")
 def bank_summary(_: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[dict]:
-    """Approved-question counts per subject/topic/difficulty, for blueprint planning."""
+    """Approved-question counts per subject/topic/difficulty, for blueprint planning.
+
+    `marks` breaks each count down by the marks the authors gave the questions, e.g.
+    {"1": 3, "2": 1}, so a blueprint can take its marks from the bank instead of guessing.
+    """
     rows = db.execute(
-        select(Question.subject, Question.topic, Question.difficulty, func.count())
+        select(Question.subject, Question.topic, Question.difficulty, Question.marks, func.count())
         .where(Question.status == QuestionStatus.APPROVED)
-        .group_by(Question.subject, Question.topic, Question.difficulty)
-        .order_by(Question.subject, Question.topic)
+        .group_by(Question.subject, Question.topic, Question.difficulty, Question.marks)
+        .order_by(Question.subject, Question.topic, Question.difficulty, Question.marks)
     ).all()
-    return [{"subject": s, "topic": t, "difficulty": d.value, "count": c} for s, t, d, c in rows]
+    out: dict[tuple, dict] = {}
+    for s, t, d, m, c in rows:
+        row = out.setdefault(
+            (s, t, d), {"subject": s, "topic": t, "difficulty": d.value, "count": 0, "marks": {}}
+        )
+        row["count"] += c
+        row["marks"][str(m)] = c
+    return list(out.values())

@@ -114,3 +114,13 @@ def test_similarity_check_flags_near_duplicates(client, make_user, login):
     assert hits[0]["question_id"] == original
     assert hits[0]["similarity"] > 0.9
     assert hits[1]["similarity"] < 0.3
+
+
+def test_bank_summary_breaks_counts_down_by_marks(client, make_user, login):
+    _, author_h, reviewer_h, admin_h = _setup(make_user, login)
+    approved_question(client, author_h, reviewer_h, "Easy one worth a mark?", marks=1)
+    approved_question(client, author_h, reviewer_h, "Easy two worth a mark?", marks=1)
+    approved_question(client, author_h, reviewer_h, "Easy three worth two?", marks=2)
+    rows = client.get("/bank/summary", headers=admin_h).json()
+    algebra = next(r for r in rows if r["topic"] == "Algebra" and r["difficulty"] == "easy")
+    assert algebra["count"] == 3 and algebra["marks"] == {"1": 2, "2": 1}

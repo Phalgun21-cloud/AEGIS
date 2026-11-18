@@ -228,6 +228,7 @@ export type BankSummaryRow = {
   topic: string;
   difficulty: Difficulty;
   count: number;
+  marks?: Record<string, number>; // approved questions per marks value, e.g. {"1": 3}
 };
 
 export type CandidateExam = {
