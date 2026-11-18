@@ -348,7 +348,8 @@ def test_violations_counted_and_limit_auto_submits(client, world, clock):
     assert r.json()["violations"] == 1 and r.json()["counted"] is False
 
     clock.advance(seconds=10)
-    assert client.post(url, json={"kind": "fullscreen_exit"}, headers=w["c1_h"]).json()[
+    # A covered camera counts like any other departure.
+    assert client.post(url, json={"kind": "camera_blocked"}, headers=w["c1_h"]).json()[
         "violations"
     ] == 2
     clock.advance(seconds=10)

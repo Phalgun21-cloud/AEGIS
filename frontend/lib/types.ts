@@ -284,7 +284,13 @@ export type Attempt = {
   snapshot_seconds: number;
 };
 
-export type ViolationKind = "fullscreen_exit" | "tab_hidden" | "window_blur" | "camera_off" | "noise";
+export type ViolationKind =
+  | "fullscreen_exit"
+  | "tab_hidden"
+  | "window_blur"
+  | "camera_off"
+  | "camera_blocked"
+  | "noise";
 
 export type ViolationAck = {
   violations: number;

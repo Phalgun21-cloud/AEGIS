@@ -348,7 +348,9 @@ class SubmissionReceipt(BaseModel):
 
 class ViolationReport(BaseModel):
     # "noise" (sustained sound on the microphone) is only flagged; it never ends the attempt.
-    kind: Literal["fullscreen_exit", "tab_hidden", "window_blur", "camera_off", "noise"]
+    kind: Literal[
+        "fullscreen_exit", "tab_hidden", "window_blur", "camera_off", "camera_blocked", "noise"
+    ]
 
 
 class ViolationAck(BaseModel):

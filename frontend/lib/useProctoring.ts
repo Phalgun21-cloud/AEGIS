@@ -78,8 +78,14 @@ export function watchLevel(stream: MediaStream, onLevel: (rms: number) => void):
   };
 }
 
+// "muted" means no data is arriving (an OS privacy mute, a hardware mic switch), not just paused.
 const liveTrack = (s: MediaStream | null, kind: "video" | "audio") =>
-  !!s && s.getTracks().some((t) => t.kind === kind && t.readyState === "live");
+  !!s && s.getTracks().some((t) => t.kind === kind && t.readyState === "live" && t.enabled && !t.muted);
+
+// A covered lens or blacked-out camera: almost no light and almost no detail in the frame.
+const COVERED_BRIGHTNESS = 18; // mean luma 0..255
+const COVERED_SPREAD = 8; // standard deviation of luma
+const COVERED_SUSTAIN_MS = 5000;
 
 type Options = {
   attemptId: string;
@@ -237,6 +243,56 @@ export function useProctoring(o: Options) {
     };
   }, [o.active, o.mediaRequired, stream, report]);
 
+  // Camera evaluation: a lens covered by a hand, tape or a privacy shutter still sends frames,
+  // but they are black and featureless. Sustained for 5 seconds, that counts as a violation.
+  useEffect(() => {
+    if (!o.active || !o.mediaRequired || !stream) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 48;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    let coveredSince = 0;
+    const t = setInterval(() => {
+      const v = videoEl.current;
+      if (!ctx || !v || v.readyState < 2 || !v.videoWidth) return;
+      ctx.drawImage(v, 0, 0, 64, 48);
+      const px = ctx.getImageData(0, 0, 64, 48).data;
+      let sum = 0;
+      let sq = 0;
+      const n = px.length / 4;
+      for (let i = 0; i < px.length; i += 4) {
+        const y = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+        sum += y;
+        sq += y * y;
+      }
+      const mean = sum / n;
+      const spread = Math.sqrt(Math.max(0, sq / n - mean * mean));
+      const now = Date.now();
+      if (mean > COVERED_BRIGHTNESS || spread > COVERED_SPREAD) {
+        coveredSince = 0;
+        return;
+      }
+      if (!coveredSince) coveredSince = now;
+      if (now - coveredSince >= COVERED_SUSTAIN_MS) {
+        coveredSince = 0;
+        void report("camera_blocked");
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [o.active, o.mediaRequired, stream, report]);
+
+  // The browser Back button would leave the exam: keep the candidate on the page.
+  useEffect(() => {
+    if (!o.active) return;
+    history.pushState(null, "", location.href);
+    const onBack = () => {
+      history.pushState(null, "", location.href);
+      setWarning("Going back is disabled during the exam. Submit your answers to finish.");
+    };
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, [o.active]);
+
   // Self-view.
   const attachVideo = useCallback(
     (el: HTMLVideoElement | null) => {
@@ -331,7 +387,9 @@ function describe(kind: ViolationKind): string {
     case "window_blur":
       return "You switched to another window.";
     case "camera_off":
-      return "Your camera or microphone stopped.";
+      return "Your camera or microphone stopped or was muted.";
+    case "camera_blocked":
+      return "Your camera is covered or showing a black picture. Keep your face clearly visible.";
     default:
       return "";
   }
