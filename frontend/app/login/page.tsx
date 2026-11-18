@@ -51,11 +51,11 @@ function LoginForm() {
     if (!password) {
       setPasswordError("Password is required.");
       valid = false;
-    } else if (password.length < 8) {
-      setPasswordError("Password must be at least 8 characters long.");
+    } else if (password.length < 10) {
+      setPasswordError("Password must be at least 10 characters long.");
       valid = false;
-    } else if (password.length > 30) {
-      setPasswordError("Password cannot exceed 30 characters.");
+    } else if (password.length > 15) {
+      setPasswordError("Password cannot exceed 15 characters.");
       valid = false;
     } else {
       setPasswordError(null);

@@ -30,7 +30,7 @@ export const VALIDATION_RULES: Record<string, ValidationRule> = {
     patternMessage: "Please enter a valid RFC-compliant email address.",
   },
   username: { min: 3, max: 30, label: "Username" },
-  password: { min: 8, max: 15, label: "Password" }, // bcrypt safety limit
+  password: { min: 10, max: 15, label: "Password" }, // bcrypt safety limit (10-15 chars)
   rejection_reason: { min: 5, max: 500, label: "Rejection reason" },
 };
 
@@ -198,7 +198,7 @@ export type PasswordStrength = {
 };
 
 export function checkPasswordStrength(password: string): PasswordStrength {
-  const hasMinLen = password.length >= 8;
+  const hasMinLen = password.length >= 10;
   const hasMaxLen = password.length <= 15;
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
@@ -212,7 +212,7 @@ export function checkPasswordStrength(password: string): PasswordStrength {
   if (hasSpecial) criteriaMet++;
 
   let label: PasswordStrength["label"] = "Weak";
-  if (password.length < 8) label = "Too Short";
+  if (password.length < 10) label = "Too Short";
   else if (criteriaMet <= 1) label = "Weak";
   else if (criteriaMet === 2) label = "Fair";
   else if (criteriaMet === 3) label = "Good";

@@ -26,6 +26,15 @@ class UserOut(BaseModel):
     is_active: bool
 
 
+class OtpRequest(BaseModel):
+    email: EmailStr
+
+
+class OtpVerify(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=4, max_length=10)
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
@@ -33,6 +42,7 @@ class UserCreate(BaseModel):
     # inside bcrypt's 72-byte limit, so nothing is ever silently truncated.)
     password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
     role: Role
+    verification_token: str | None = None
 
 
 class UserUpdate(BaseModel):
