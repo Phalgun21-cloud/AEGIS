@@ -6,11 +6,13 @@ const isDev = process.env.NODE_ENV !== "production";
 // middleware); the dev server also needs eval and its hot-reload WebSocket.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' https://accounts.google.com${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
-  `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self' https://accounts.google.com/gsi/${isDev ? " ws: wss:" : ""}`,
+  // Sign in with Google renders its button in a frame from accounts.google.com.
+  "frame-src https://accounts.google.com/gsi/",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -24,7 +26,8 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Camera and microphone: exam proctoring on this site only. Fullscreen: the exam page.
   { key: "Permissions-Policy", value: "camera=(self), microphone=(self), fullscreen=(self), geolocation=()" },
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // Sign in with Google opens a pop-up that must be able to report back to this page.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   ...(isDev
     ? []
     : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]),

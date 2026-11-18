@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { Alert, Badge, Button, Card, Field, Input, PasswordInput, cx } from "@/components/ui";
-import { errorMessage } from "@/lib/api";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { ApiError, api, errorMessage } from "@/lib/api";
 import { HOME, useAuth } from "@/lib/auth";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function LoginForm() {
-  const { user, loading, login } = useAuth();
+  const { user, loading, login, loginWithGoogle } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -21,6 +22,9 @@ function LoginForm() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set when the password was right but the email address isn't verified yet.
+  const [unverified, setUnverified] = useState(false);
+  const [resendNote, setResendNote] = useState<string | null>(null);
 
   // Follow safe same-site relative path or default role dashboard
   const next = params.get("next");
@@ -71,11 +75,37 @@ function LoginForm() {
     if (!validate()) return;
 
     setBusy(true);
+    setUnverified(false);
+    setResendNote(null);
     try {
       await login(email.trim(), password);
     } catch (err) {
       setServerError(errorMessage(err));
+      setUnverified(err instanceof ApiError && err.status === 403);
       setPassword("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendVerification() {
+    setResendNote(null);
+    try {
+      await api("/auth/resend-verification", { json: { email: email.trim() } });
+      setResendNote("If this account still needs verifying, a new link is on its way. Check your inbox and spam folder.");
+    } catch (err) {
+      setResendNote(errorMessage(err));
+    }
+  }
+
+  async function onGoogle(credential: string) {
+    setServerError(null);
+    setUnverified(false);
+    setBusy(true);
+    try {
+      await loginWithGoogle(credential);
+    } catch (err) {
+      setServerError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -96,6 +126,18 @@ function LoginForm() {
         )}
 
         {serverError && <Alert kind="error">{serverError}</Alert>}
+        {unverified && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={resendVerification}
+              className="text-xs font-medium text-cyan-300 underline hover:text-cyan-200"
+            >
+              Resend verification email
+            </button>
+            {resendNote && <p className="text-xs text-slate-400">{resendNote}</p>}
+          </div>
+        )}
 
         <Field label="Email Address" required error={emailError}>
           <Input
@@ -138,6 +180,8 @@ function LoginForm() {
           Sign In to Examination Portal
         </Button>
       </form>
+
+      <GoogleSignInButton onCredential={onGoogle} onError={setServerError} disabled={busy} />
 
       <p className="mt-6 text-center text-xs text-slate-400">
         Forgot your password? Contact your examination administrator.

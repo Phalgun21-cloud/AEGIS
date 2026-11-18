@@ -55,13 +55,22 @@ export default function UsersPage() {
     setMsg(null);
     try {
       const u = await api<User>("/users", { json: form });
-      setMsg({ kind: "success", text: `Successfully created ${u.role} account for ${u.email}.` });
+      setMsg({ kind: "success", text: `Created ${u.role} account for ${u.email}. A verification email has been sent; they can sign in once they confirm it.` });
       setForm({ ...EMPTY, role: form.role });
       void users.reload();
     } catch (err) {
       setMsg({ kind: "error", text: errorMessage(err) });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resendVerification(u: User) {
+    try {
+      await api(`/users/${u.id}/resend-verification`, { method: "POST" });
+      setMsg({ kind: "success", text: `Verification email sent again to ${u.email}.` });
+    } catch (err) {
+      setMsg({ kind: "error", text: errorMessage(err) });
     }
   }
 
@@ -181,6 +190,11 @@ export default function UsersPage() {
                     <Td>
                       <div className="font-medium text-white">{u.full_name}</div>
                       <div className="text-xs text-slate-500 font-mono">{u.email}</div>
+                      {u.email_verified === false && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                          Email not verified
+                        </div>
+                      )}
                     </Td>
                     <Td>
                       <Badge value={u.role} />
@@ -197,6 +211,11 @@ export default function UsersPage() {
                       )}
                     </Td>
                     <Td>
+                      {u.email_verified === false && u.is_active && (
+                        <Button variant="secondary" onClick={() => resendVerification(u)} className="mr-2 text-xs py-1 px-2.5">
+                          Resend link
+                        </Button>
+                      )}
                       {!isSelf && (
                         <Button
                           variant={u.is_active ? "ghost" : "secondary"}

@@ -10,6 +10,7 @@ type AuthState = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginWithGoogle: (credential: string) => Promise<User>;
   logout: () => Promise<void>;
 };
 
@@ -69,7 +70,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return me;
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  // Google proves who the person is; the server only signs in accounts an admin created.
+  const loginWithGoogle = useCallback(async (credential: string): Promise<User> => {
+    await api("/auth/google", { json: { credential } }); // sets the httpOnly session cookie
+    const me = await api<User>("/auth/me");
+    setSessionActive(true);
+    setUser(me);
+    return me;
+  }, []);
+
+  return <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

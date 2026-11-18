@@ -225,6 +225,54 @@ stays within Render's 750 free hours.
 Your data and settings stay, and there's no new deploy to run. Also change `plan: free`
 to `plan: starter` in `render.yaml`, so the blueprint matches.
 
+## Sign in with Google and email verification
+
+Both are optional settings on **Render → aegis-api → Environment**. Without them AEGIS still
+works: the Google button stays hidden, and verification links are written to the API log.
+
+**How it works**
+- New accounts (created by the admin on the Users page) get a verification email. Password
+  sign-in is refused until the link is opened. The admin can resend the link from the Users page.
+- Sign in with Google works only for accounts the admin has already created; Google proves who
+  the person is, and AEGIS keeps their role. Google sign-in also counts as email verification.
+- Accounts created with `python -m app.cli create-user`, and every account that existed before
+  this feature, are already verified.
+
+### Gmail SMTP (verification emails)
+
+1. Use a Gmail account for sending (a dedicated one is best). Turn on **2-Step Verification** at
+   myaccount.google.com → Security.
+2. Create an **App Password**: myaccount.google.com → Security → App passwords → name it
+   "AEGIS". Copy the 16-character password (no spaces).
+3. On Render set:
+
+   | Variable | Value |
+   |---|---|
+   | `SMTP_HOST` | `smtp.gmail.com` |
+   | `SMTP_PORT` | `587` |
+   | `SMTP_USER` | the Gmail address |
+   | `SMTP_PASSWORD` | the App Password |
+   | `SMTP_FROM` | `AEGIS <the Gmail address>` (optional) |
+   | `APP_BASE_URL` | `https://<your-project>.vercel.app` (where links point) |
+
+Gmail allows about 500 messages a day from a normal account.
+
+### Google sign-in
+
+1. Go to console.cloud.google.com → create (or pick) a project.
+2. **APIs & Services → OAuth consent screen**: choose *External*, fill in the app name (AEGIS)
+   and your email, and publish it (or add your users as test users while it's in testing).
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type: **Web application**
+   - **Authorised JavaScript origins**: `https://<your-project>.vercel.app` and, for local
+     development, `http://localhost:3000`
+   - No redirect URI is needed (the button uses a pop-up).
+4. Copy the **Client ID** (ends in `.apps.googleusercontent.com`) and set it on Render as
+   `GOOGLE_CLIENT_ID`. It isn't a secret; no client secret is used.
+
+Render redeploys after saving; the **Sign in with Google** button then appears on the sign-in
+page.
+
 ## Everyday operations
 
 - **Updating.** Push to `main`. Render and Vercel each redeploy automatically, and Render

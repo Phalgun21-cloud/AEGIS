@@ -173,6 +173,8 @@ def main() -> None:
                 for lost in admin.ok("GET", f"/users?role={role}"):
                     if lost["email"] == email:
                         admin.ok("PATCH", f"/users/{lost['id']}", json={"is_active": False})
+            # Demo mailboxes don't exist, so the admin marks the account verified (audited).
+            admin.ok("POST", f"/users/{u['id']}/mark-verified")
             accounts[role].append({"id": u["id"], "email": email, "name": name, "password": pw})
             write_credentials(Path(args.out), args.base_url, accounts)  # saved as we go
     print(f"  {sum(len(v) for v in accounts.values())} users; passwords in {args.out}", flush=True)

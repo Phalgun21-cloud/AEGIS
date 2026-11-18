@@ -25,3 +25,10 @@ class User(Base):
     role: Mapped[Role] = mapped_column(Enum(Role, values_callable=lambda e: [m.value for m in e]))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Set when the user proves they own the address (verification link or Google sign-in).
+    # Password sign-in is refused until then.
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    @property
+    def email_verified(self) -> bool:
+        return self.email_verified_at is not None
