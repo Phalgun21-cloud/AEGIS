@@ -21,7 +21,7 @@ import { api, errorMessage } from "@/lib/api";
 import { fmtDateTime, fromLocalInput, toLocalInput } from "@/lib/format";
 import type { Exam, ExamStatus } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
-import { validateExamSchedule, validateField } from "@/lib/validation";
+import { validateExamSchedule, validateField, validateInteger } from "@/lib/validation";
 
 /**
  * Default scheduled start time: Exactly 2 hours in the future (safely > 30 minutes).
@@ -79,8 +79,12 @@ export default function ExamsPage() {
     if (!instVal.isValid) errs.instructions = instVal.error!;
 
     // Validate Total Marks
-    if (!form.total_marks || form.total_marks <= 0) {
-      errs.total_marks = "Total examination marks must be a positive number (e.g. 100).";
+    const marksError = validateInteger(form.total_marks, 10, 1000, "Total paper marks");
+    if (marksError) {
+      errs.total_marks =
+        form.total_marks > 0 && form.total_marks < 10
+          ? "Total paper marks must be at least 10 (single-digit totals aren't allowed)."
+          : marksError;
     }
 
     // Validate Duration
@@ -228,13 +232,14 @@ export default function ExamsPage() {
               <Field
                 label="Total Paper Marks"
                 required
-                hint="Standard paper total is 100 marks"
+                hint="10–1000 marks (standard paper total is 100)"
                 error={fieldErrors.total_marks}
               >
                 <Input
                   type="number"
-                  min={1}
+                  min={10}
                   max={1000}
+                  step={1}
                   value={form.total_marks}
                   onChange={(e) => setForm({ ...form, total_marks: Number(e.target.value) })}
                 />
