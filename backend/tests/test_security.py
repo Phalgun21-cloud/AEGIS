@@ -21,10 +21,6 @@ PUBLIC = {
     ("GET", "/health"),
     ("GET", "/health/db"),
     ("POST", "/auth/login"),
-    ("POST", "/auth/verify-email"),
-    ("POST", "/auth/resend-verification"),
-    ("POST", "/auth/google"),
-    ("GET", "/auth/config"),
     ("POST", "/auth/logout"),
 }
 # Routes open to any signed-in user that refuse some roles inside the handler.

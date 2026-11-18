@@ -15,7 +15,6 @@ from sqlalchemy.pool import StaticPool
 
 import app.models
 from app.core.security import hash_password
-from app.core.timeutil import utcnow
 from app.db import Base, SessionLocal, get_db
 from app.main import app
 from app.models import Role, User
@@ -71,7 +70,6 @@ def make_user(db):
             password_hash=_HASH,
             role=role,
             is_active=True,
-            email_verified_at=utcnow(),
         )
         db.add(user)
         db.commit()

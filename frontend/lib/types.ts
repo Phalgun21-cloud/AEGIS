@@ -32,7 +32,6 @@ export type User = {
   full_name: string;
   role: Role;
   is_active: boolean;
-  email_verified?: boolean;
 };
 
 export type QuestionMeta = {

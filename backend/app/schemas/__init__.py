@@ -24,23 +24,6 @@ class UserOut(BaseModel):
     full_name: str
     role: Role
     is_active: bool
-    email_verified: bool = False
-
-
-class VerifyEmailRequest(BaseModel):
-    token: str = Field(min_length=10, max_length=2000)
-
-
-class ResendVerificationRequest(BaseModel):
-    email: EmailStr
-
-
-class GoogleLoginRequest(BaseModel):
-    credential: str = Field(min_length=20, max_length=8000)  # Google ID token (JWT)
-
-
-class AuthConfig(BaseModel):
-    google_client_id: str | None
 
 
 class UserCreate(BaseModel):

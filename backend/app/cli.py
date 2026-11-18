@@ -16,7 +16,6 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.security import hash_password
-from app.core.timeutil import utcnow
 from app.db import SessionLocal
 from app.models import Role, User
 from app.schemas import PASSWORD_MAX, PASSWORD_MIN
@@ -43,7 +42,6 @@ def create_user(args: argparse.Namespace) -> int:
             password_hash=hash_password(password),
             role=Role(args.role),
             is_active=True,
-            email_verified_at=utcnow(),
         )
         db.add(user)
         db.flush()

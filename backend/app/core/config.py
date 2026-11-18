@@ -78,21 +78,6 @@ class Settings(BaseSettings):
     # Anchor at most this often, and only when critical events happened since the last anchor.
     anchor_min_interval_seconds: int = 60
 
-    # Sign in with Google: the OAuth client ID from Google Cloud Console (not a secret).
-    # Empty disables the button. Only accounts an admin already created can sign in this way.
-    google_client_id: str = ""
-
-    # Verification emails (Gmail SMTP: smtp.gmail.com, port 587, the Gmail address as user and
-    # a Gmail App Password). With no SMTP host, the link is written to the log instead.
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    smtp_from: str = ""  # defaults to smtp_user
-    # Public address of the web app, used in emailed links; defaults to the first CORS origin.
-    app_base_url: str = ""
-    email_verify_hours: int = 48
-
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
@@ -113,15 +98,6 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
-
-    @property
-    def public_base_url(self) -> str:
-        base = self.app_base_url or (self.cors_origin_list[0] if self.cors_origin_list else "")
-        return base.rstrip("/") or "http://localhost:3000"
-
-    @property
-    def mail_enabled(self) -> bool:
-        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
