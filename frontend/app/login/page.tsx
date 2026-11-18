@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { Alert, Badge, Button, Card, Field, Input, PasswordInput, cx } from "@/components/ui";
-import { ForgotPasswordModal } from "@/components/ForgotPasswordModal";
 import { errorMessage } from "@/lib/api";
 import { HOME, useAuth } from "@/lib/auth";
 
@@ -21,9 +20,7 @@ function LoginForm() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [resetSuccess, setResetSuccess] = useState(params.get("reset") === "success");
   const [busy, setBusy] = useState(false);
-  const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Follow safe same-site relative path or default role dashboard
   const next = params.get("next");
@@ -94,10 +91,6 @@ function LoginForm() {
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4" noValidate>
-        {resetSuccess && (
-          <Alert kind="success">Your password has been successfully reset! Please sign in with your updated credentials.</Alert>
-        )}
-
         {params.get("expired") && !serverError && (
           <Alert kind="warning">Your session expired or was terminated. Please sign in again.</Alert>
         )}
@@ -123,13 +116,6 @@ function LoginForm() {
             <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Password <span className="text-rose-400">*</span>
             </span>
-            <button
-              type="button"
-              onClick={() => setShowForgotModal(true)}
-              className="text-xs text-cyan-400 hover:text-cyan-300 transition underline"
-            >
-              Forgot password?
-            </button>
           </div>
           <PasswordInput
             autoComplete="current-password"
@@ -153,20 +139,10 @@ function LoginForm() {
         </Button>
       </form>
 
-      {/* Interactive In-Page Forgot Password Modal */}
-      <ForgotPasswordModal
-        open={showForgotModal}
-        onClose={() => setShowForgotModal(false)}
-        initialEmail={email}
-        onSuccess={(updatedEmail, updatedPass) => {
-          setEmail(updatedEmail);
-          setPassword(updatedPass);
-          setResetSuccess(true);
-          setShowForgotModal(false);
-        }}
-      />
-
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="mt-6 text-center text-xs text-slate-400">
+        Forgot your password? Contact your examination administrator.
+      </p>
+      <p className="mt-2 text-center text-xs text-slate-500">
         Account authentication is cryptographically audited and verified by AEGIS Vault.
       </p>
     </Card>

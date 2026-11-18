@@ -18,7 +18,7 @@ function Status({ label, ok }: { label: string; ok: boolean }) {
       <span className={`h-2 w-2 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />
       <span className="text-slate-300">{label}:</span>
       <span className={ok ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
-        {ok ? "Online" : "Standalone / Demo Mode"}
+        {ok ? "Online" : "Unreachable"}
       </span>
     </div>
   );
@@ -66,42 +66,6 @@ export default async function Home() {
         </Link>
       </div>
 
-      {/* Role Directory Card - Exactly Four Portals */}
-      <div className="mt-6 w-full max-w-2xl rounded-2xl border border-cyan-500/15 bg-white/[0.02] p-6 text-left">
-        <div className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-3">
-          Institutional Governance &amp; Portals (4 Core Roles)
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <Link
-            href="/admin"
-            className="rounded-lg border border-slate-800 bg-black/40 p-3 hover:border-cyan-400 transition"
-          >
-            <span className="font-semibold text-white block">1. ADMIN</span>
-            <span className="text-[11px] text-slate-400">Scheduling, 100-mark blueprints, users &amp; live proctoring</span>
-          </Link>
-          <Link
-            href="/author"
-            className="rounded-lg border border-slate-800 bg-black/40 p-3 hover:border-cyan-400 transition"
-          >
-            <span className="font-semibold text-white block">2. AUTHOR</span>
-            <span className="text-[11px] text-slate-400">Question authoring, dynamic 100-mark allocation</span>
-          </Link>
-          <Link
-            href="/reviewer"
-            className="rounded-lg border border-slate-800 bg-black/40 p-3 hover:border-cyan-400 transition"
-          >
-            <span className="font-semibold text-white block">3. REVIEWER</span>
-            <span className="text-[11px] text-slate-400">Verify total marks &amp; answer keys, approve or reject</span>
-          </Link>
-          <Link
-            href="/candidate"
-            className="rounded-lg border border-slate-800 bg-black/40 p-3 hover:border-cyan-400 transition"
-          >
-            <span className="font-semibold text-white block">4. CANDIDATE</span>
-            <span className="text-[11px] text-slate-400">2-stage face check, mic test &amp; examination interface</span>
-          </Link>
-        </div>
-      </div>
     </main>
   );
 }

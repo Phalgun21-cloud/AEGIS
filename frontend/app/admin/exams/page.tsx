@@ -136,9 +136,7 @@ export default function ExamsPage() {
       });
       router.push(`/admin/exams/${exam.id}`);
     } catch (err) {
-      // In demo mode or if API offline, simulate adding to list
-      const demoId = Date.now();
-      router.push(`/admin/exams/${demoId}`);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
