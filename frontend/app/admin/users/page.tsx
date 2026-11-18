@@ -27,9 +27,61 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
 
+  // Email OTP verification state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpMsg, setOtpMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+
   const rawUsers = users.data ?? [];
   const displayUsers = rawUsers;
   const filteredUsers = filter ? displayUsers.filter((u) => u.role === filter) : displayUsers;
+
+  async function handleSendOtp() {
+    const emailVal = validateField("email", form.email, true);
+    if (!emailVal.isValid) {
+      setFieldErrors((prev) => ({ ...prev, email: emailVal.error! }));
+      return;
+    }
+    setOtpBusy(true);
+    setOtpMsg(null);
+    try {
+      const res = await api<{ ok: boolean; message: string; dev_otp?: string }>("/auth/otp/send", {
+        json: { email: form.email.trim() },
+      });
+      setOtpSent(true);
+      if (res.dev_otp) setDevOtp(res.dev_otp);
+      setOtpMsg({ kind: "success", text: res.message || "OTP sent to email address." });
+    } catch (err) {
+      setOtpMsg({ kind: "error", text: errorMessage(err) });
+    } finally {
+      setOtpBusy(false);
+    }
+  }
+
+  async function handleVerifyOtp() {
+    if (!otpCode.trim()) {
+      setOtpMsg({ kind: "error", text: "Please enter the 6-digit OTP code." });
+      return;
+    }
+    setOtpBusy(true);
+    setOtpMsg(null);
+    try {
+      const res = await api<{ ok: boolean; message: string; verification_token: string }>("/auth/otp/verify", {
+        json: { email: form.email.trim(), otp: otpCode.trim() },
+      });
+      setOtpVerified(true);
+      setVerificationToken(res.verification_token);
+      setOtpMsg({ kind: "success", text: "✓ Email verified successfully!" });
+    } catch (err) {
+      setOtpMsg({ kind: "error", text: errorMessage(err) });
+    } finally {
+      setOtpBusy(false);
+    }
+  }
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
@@ -51,12 +103,23 @@ export default function UsersPage() {
     e.preventDefault();
     if (!validate()) return;
 
+    if (!otpVerified) {
+      setMsg({ kind: "error", text: "Email must be verified with OTP before account provisioning." });
+      return;
+    }
+
     setBusy(true);
     setMsg(null);
     try {
-      const u = await api<User>("/users", { json: form });
-      setMsg({ kind: "success", text: `Successfully created ${u.role} account for ${u.email}.` });
+      const u = await api<User>("/users", { json: { ...form, verification_token: verificationToken } });
+      setMsg({ kind: "success", text: `Successfully created and verified ${u.role} account for ${u.email}.` });
       setForm({ ...EMPTY, role: form.role });
+      setOtpSent(false);
+      setOtpCode("");
+      setOtpVerified(false);
+      setVerificationToken(null);
+      setDevOtp(null);
+      setOtpMsg(null);
       void users.reload();
     } catch (err) {
       setMsg({ kind: "error", text: errorMessage(err) });
@@ -98,15 +161,81 @@ export default function UsersPage() {
             </Field>
 
             <Field label="Institutional Email" required error={fieldErrors.email}>
-              <ValidatedInput
-                type="email"
-                placeholder="user@university.edu"
-                minLength={5}
-                maxLength={254}
-                value={form.email}
-                error={fieldErrors.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <ValidatedInput
+                    type="email"
+                    placeholder="user@university.edu"
+                    minLength={5}
+                    maxLength={254}
+                    value={form.email}
+                    disabled={otpVerified}
+                    error={fieldErrors.email}
+                    onChange={(e) => {
+                      setForm({ ...form, email: e.target.value });
+                      if (otpVerified) {
+                        setOtpVerified(false);
+                        setVerificationToken(null);
+                        setOtpSent(false);
+                      }
+                    }}
+                  />
+                  {!otpVerified ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      busy={otpBusy}
+                      onClick={handleSendOtp}
+                      className="whitespace-nowrap text-xs px-3"
+                    >
+                      {otpSent ? "Resend OTP" : "Send OTP"}
+                    </Button>
+                  ) : (
+                    <span className="inline-flex items-center px-3 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                      ✓ Verified
+                    </span>
+                  )}
+                </div>
+
+                {/* OTP Input & Verification section */}
+                {otpSent && !otpVerified && (
+                  <div className="p-3 bg-black/40 border border-cyan-500/30 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-300 font-medium">Enter 6-Digit Verification OTP:</span>
+                      {devOtp && (
+                        <span className="font-mono text-cyan-300 text-[11px] bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/40">
+                          Dev Code: {devOtp}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="123456"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        className="w-32 text-center tracking-widest font-mono text-sm rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-cyan-200 focus:border-cyan-400 focus:outline-none"
+                      />
+                      <Button
+                        type="button"
+                        variant="primary"
+                        busy={otpBusy}
+                        onClick={handleVerifyOtp}
+                        className="text-xs px-4"
+                      >
+                        Verify OTP
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {otpMsg && (
+                  <p className={`text-xs ${otpMsg.kind === "success" ? "text-emerald-400" : "text-rose-400"}`}>
+                    {otpMsg.text}
+                  </p>
+                )}
+              </div>
             </Field>
 
             <Field
@@ -138,8 +267,8 @@ export default function UsersPage() {
 
             {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
 
-            <Button type="submit" busy={busy} className="w-full font-semibold">
-              Provision Account
+            <Button type="submit" busy={busy} disabled={!otpVerified} className="w-full font-semibold">
+              {otpVerified ? "Provision Account" : "Verify Email OTP to Provision"}
             </Button>
           </form>
         </Card>
