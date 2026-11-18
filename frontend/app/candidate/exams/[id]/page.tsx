@@ -54,9 +54,16 @@ export default function ExamInstructionsPage() {
   if (exam.submitted) return <Loading label="Loading examination receipt…" />;
 
   async function start() {
-    enterFullscreen();
-    setBusy(true);
     setError(null);
+    // Must run first, inside the click: browsers only allow full screen from a user gesture.
+    if (!(await enterFullscreen())) {
+      setError(
+        "The examination must run in full screen. Allow full screen when the browser asks " +
+          "(use a recent Chrome or Edge), then click Start again.",
+      );
+      return;
+    }
+    setBusy(true);
     try {
       const attempt = await api<Attempt>(`/candidate/exams/${id}/start`, { method: "POST" });
       router.push(`/candidate/attempt/${attempt.attempt_id}`);

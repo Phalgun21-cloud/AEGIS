@@ -345,7 +345,7 @@ export default function AttemptPage() {
               variant="danger"
               onClick={() => {
                 proctor.dismissWarning();
-                enterFullscreen(); // the click is the user gesture browsers require
+                void enterFullscreen(); // the click is the user gesture browsers require
               }}
             >
               I understand, return to the exam
@@ -939,7 +939,7 @@ function ReceiptView({
             Cryptographic Submission Receipt (SHA-256)
           </div>
           <code className="mt-1 block break-all font-mono text-xs text-cyan-100 bg-black/40 p-2.5 rounded-lg border border-cyan-500/20">
-            {receipt?.answers_sha256 || "8f4e2b17a639014cd78932efba0154cc9281734a6bcdef1289456721ea02319f"}
+            {receipt?.answers_sha256 ?? "Shown once, right after submission. The administrator can verify your answers from the audit log."}
           </code>
           <p className="mt-2 text-[11px] text-slate-400">
             This SHA-256 digest cryptographically binds the recorded answers and timestamps inside the AEGIS Vault. Keep this receipt for verification.
@@ -1042,7 +1042,7 @@ function ProctorGate({
           <p className="mt-2 text-sm text-slate-300">
             Examination integrity requires continuous fullscreen operation. Your countdown timer is running.
           </p>
-          <Button className="mt-6" onClick={enterFullscreen}>
+          <Button className="mt-6" onClick={() => void enterFullscreen()}>
             Return to Full Screen
           </Button>
         </>

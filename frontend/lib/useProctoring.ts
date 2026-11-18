@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { ViolationAck, ViolationKind } from "@/lib/types";
 
-// A web page cannot stop the operating system (Alt+Tab, the Windows key, Ctrl+Alt+Del).
+// In full screen, Chrome and Edge let the page lock the keyboard, so Alt+Tab, the Windows key
+// and tab/close shortcuts are swallowed. Ctrl+Alt+Del and holding Esc still escape.
 // What it can do: insist on full screen, hide the paper whenever the candidate leaves it,
 // keep the camera and microphone on, and report every departure to the server, which
 // records it and submits the attempt at the configured limit.
@@ -23,15 +24,30 @@ const keyboard = (): KeyboardLock | undefined =>
 export const fullscreenSupported = (): boolean =>
   typeof document !== "undefined" && !!document.fullscreenEnabled;
 
-/** Call directly from a click handler (browsers require a user gesture). */
-export function enterFullscreen(): void {
-  if (!fullscreenSupported() || document.fullscreenElement) return;
-  document.documentElement
-    .requestFullscreen({ navigationUI: "hide" })
-    // Chromium: Esc no longer leaves full screen on a single press (it must be held).
-    .then(() => keyboard()?.lock?.(["Escape"]))
-    .catch(() => {});
+/**
+ * Enter full screen and lock the keyboard. Call directly from a click handler (browsers
+ * require a user gesture). Resolves true when the page is in full screen.
+ *
+ * Keyboard Lock (Chrome, Edge): while in full screen, a page may capture system shortcuts,
+ * so Alt+Tab, the Windows key, Ctrl+W/T/N/Tab and Esc reach the page instead of the OS or
+ * browser, and the exam swallows them. Only holding Esc for two seconds (a browser safety
+ * escape) and Ctrl+Alt+Del still get out; those are detected and counted as violations.
+ */
+export async function enterFullscreen(): Promise<boolean> {
+  if (!fullscreenSupported()) return false;
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+    }
+    await keyboard()?.lock?.().catch(() => {}); // no list = every key the browser allows
+  } catch {
+    return false;
+  }
+  return !!document.fullscreenElement;
 }
+
+// Shortcuts that would close, reload, open or switch tabs/windows.
+const NAV_KEYS = new Set(["w", "t", "n", "r", "tab", "q", "h", "j", "l", "o", "d", "f", "g", "e"]);
 
 export function leaveFullscreen(): void {
   keyboard()?.unlock?.();
@@ -177,13 +193,25 @@ export function useProctoring(o: Options) {
       const mod = e.ctrlKey || e.metaKey;
       if (
         e.key === "F12" ||
-        (mod && BLOCKED_KEYS.has(k)) ||
+        e.key === "F5" ||
+        e.key === "F11" ||
+        e.key === "Escape" ||
+        e.key === "Meta" ||
+        e.key === "OS" ||
+        (e.altKey && (k === "tab" || k === "f4" || k === "arrowleft" || k === "arrowright")) ||
+        (mod && (BLOCKED_KEYS.has(k) || NAV_KEYS.has(k))) ||
         (mod && e.shiftKey && ["i", "j", "c", "k"].includes(k))
       ) {
         e.preventDefault();
         e.stopPropagation();
       }
     };
+    // Closing or reloading the tab always asks first while the exam is running.
+    const onLeave = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onLeave);
     document.addEventListener("contextmenu", stop);
     document.addEventListener("copy", stop);
     document.addEventListener("cut", stop);
@@ -191,6 +219,7 @@ export function useProctoring(o: Options) {
     document.addEventListener("dragstart", stop);
     window.addEventListener("keydown", onKey, true);
     return () => {
+      window.removeEventListener("beforeunload", onLeave);
       document.removeEventListener("contextmenu", stop);
       document.removeEventListener("copy", stop);
       document.removeEventListener("cut", stop);
