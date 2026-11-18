@@ -132,13 +132,6 @@ def test_validation_errors_do_not_echo_input(client, make_user, login):
     assert secret not in r.text
 
 
-def test_otp_code_must_be_six_digits(client, make_user, login):
-    admin_h = _admin(make_user, login)
-    for bad in ["12345", "1234567", "12a456", " 123456"]:
-        r = client.post(
-            "/auth/otp/verify", json={"email": "a@example.com", "otp": bad}, headers=admin_h
-        )
-        assert r.status_code == 422, bad
 
 
 # ---------- questions ----------

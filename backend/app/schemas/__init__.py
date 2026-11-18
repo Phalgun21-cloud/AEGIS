@@ -64,7 +64,6 @@ Title = _line(120, min_len=5)
 Option = _text(500, min_len=1)
 Email = Annotated[EmailStr, Field(max_length=254)]
 PositiveId = Annotated[int, Field(gt=0, le=2**31 - 1)]
-VerificationToken = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{20,128}$")]
 
 # The longest an exam window may stay open, and the most a paper may hold.
 MAX_WINDOW = timedelta(days=7)
@@ -106,15 +105,6 @@ class UserOut(BaseModel):
     email_verified: bool
 
 
-class OtpRequest(BaseModel):
-    email: Email
-
-
-class OtpVerify(BaseModel):
-    email: Email
-    otp: str = Field(pattern=r"^\d{6}$", description="the 6-digit code from the email")
-
-
 class UserCreate(BaseModel):
     email: Email
     full_name: FullName
@@ -123,7 +113,6 @@ class UserCreate(BaseModel):
     # every character typed is part of the password.
     password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
     role: Role
-    verification_token: VerificationToken | None = None
 
     @model_validator(mode="after")
     def _password_rules(self) -> "UserCreate":

@@ -13,12 +13,10 @@ from app.api.deps import (
 from app.core.config import get_settings
 from app.core.ratelimit import SlidingWindowLimiter
 from app.core.security import create_access_token, hash_password, verify_password
-from app.core.timeutil import utcnow
 from app.db import get_db
 from app.models import Role, User
-from app.schemas import OtpRequest, OtpVerify, Token, UserCreate, UserOut, UserUpdate
+from app.schemas import Token, UserCreate, UserOut, UserUpdate
 from app.services import audit
-from app.services.otp import request_otp, validate_verification_token, verify_otp_code
 
 router = APIRouter(tags=["auth"])
 
@@ -92,21 +90,6 @@ def me(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-@router.post("/auth/otp/send")
-def send_otp_endpoint(body: OtpRequest, admin: User = Depends(require_admin)) -> dict:
-    """Send a 6-digit code to a new user's address (admin, while creating the account)."""
-    return request_otp(body.email)
-
-
-@router.post("/auth/otp/verify")
-def verify_otp_endpoint(body: OtpVerify, admin: User = Depends(require_admin)) -> dict:
-    """Check the code the new user received (admin only; never an open email relay)."""
-    res = verify_otp_code(body.email, body.otp)
-    if not res.get("ok"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, res.get("error", "Verification failed"))
-    return res
-
-
 @router.post("/users", response_model=UserOut, status_code=201)
 def create_user(
     body: UserCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)
@@ -115,24 +98,12 @@ def create_user(
     if db.execute(select(User.id).where(User.email == email)).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "A user with that email already exists")
 
-    # If verification_token is provided from the OTP verification flow, mark email as verified!
-    is_verified = False
-    if body.verification_token:
-        if not validate_verification_token(email, body.verification_token):
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                "Email verification token is invalid or expired. Please verify with OTP again.",
-            )
-        is_verified = True
-
     user = User(
         email=email,
         full_name=body.full_name.strip(),
         password_hash=hash_password(body.password),
         role=body.role,
         is_active=True,
-        email_verified=is_verified,
-        email_verified_at=utcnow() if is_verified else None,
     )
     db.add(user)
     db.flush()
@@ -142,7 +113,7 @@ def create_user(
         actor=admin,
         entity_type="user",
         entity_id=user.id,
-        details={"role": user.role.value, "email_verified": is_verified},
+        details={"role": user.role.value},
     )
     db.commit()
     return user
