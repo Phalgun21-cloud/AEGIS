@@ -360,13 +360,35 @@ export function useProctoring(o: Options) {
   }, [o.active, stream]);
   useEffect(() => () => stream?.getTracks().forEach((t) => t.stop()), [stream]);
 
+  // A second monitor would let the candidate read notes beside the exam (as SEB refuses).
+  // Chrome and Edge expose screen.isExtended; other browsers simply skip this check.
+  const [extendedScreen, setExtendedScreen] = useState(false);
+  useEffect(() => {
+    if (!o.active) return;
+    const scr = window.screen as Screen & {
+      isExtended?: boolean;
+      addEventListener?: (type: string, fn: () => void) => void;
+      removeEventListener?: (type: string, fn: () => void) => void;
+    };
+    const check = () => setExtendedScreen(scr.isExtended === true);
+    check();
+    scr.addEventListener?.("change", check);
+    const t = setInterval(check, 3000);
+    return () => {
+      clearInterval(t);
+      scr.removeEventListener?.("change", check);
+    };
+  }, [o.active]);
+
   const needsFullscreen = o.active && fullscreenSupported() && !isFullscreen;
   const needsMedia = o.active && o.mediaRequired && !mediaOk;
+  const needsSingleScreen = o.active && extendedScreen;
 
   return {
-    blocked: needsFullscreen || needsMedia,
+    blocked: needsFullscreen || needsMedia || needsSingleScreen,
     needsFullscreen,
     needsMedia,
+    needsSingleScreen,
     mediaError,
     retryMedia: startMedia,
     violations,

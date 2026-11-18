@@ -324,9 +324,40 @@ export default function AttemptPage() {
 
       {error && <Alert kind="error">{error}</Alert>}
 
+      {/* Violation warning: covers the whole screen until acknowledged */}
+      {proctor.warning && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 px-4 backdrop-blur-sm"
+        >
+          <Card className="w-full max-w-lg border-rose-500/60 bg-[#1a0812] p-8 text-center shadow-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-rose-500/50 bg-rose-500/20 text-4xl font-bold text-rose-300">
+              !
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-white">Proctoring Violation</h2>
+            <p className="mt-3 text-sm text-rose-100">{proctor.warning}</p>
+            <p className="mt-2 text-xs text-slate-400">
+              Stay in full screen on this tab, keep your face visible and your camera and microphone on.
+            </p>
+            <Button
+              className="mt-6"
+              variant="danger"
+              onClick={() => {
+                proctor.dismissWarning();
+                enterFullscreen(); // the click is the user gesture browsers require
+              }}
+            >
+              I understand, return to the exam
+            </Button>
+          </Card>
+        </div>
+      )}
+
       {/* Proctoring Shield & Blocked State */}
       {proctor.blocked ? (
         <ProctorGate
+          needsSingleScreen={proctor.needsSingleScreen}
           needsMedia={proctor.needsMedia}
           mediaError={proctor.mediaError}
           onRetryMedia={() => void proctor.retryMedia()}
@@ -840,6 +871,7 @@ function ReceiptView({
 }) {
   const submittedAt = receipt?.submitted_at ?? attempt.submitted_at;
   const questions = attempt.questions ?? [];
+  const terminated = attempt.max_violations > 0 && attempt.violations >= attempt.max_violations;
 
   // Calculate score preview using our centralized marks scheme engine
   const scoreSummary = useMemo(() => {
@@ -856,7 +888,19 @@ function ReceiptView({
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 text-3xl text-emerald-300 border border-emerald-500/40">
           ✓
         </div>
-        <h1 className="mt-4 text-2xl font-bold text-white">Examination Submitted Successfully</h1>
+        {terminated ? (
+          <div className="mb-6 rounded-xl border border-rose-500/50 bg-rose-500/15 p-4 text-left">
+            <p className="text-lg font-bold text-rose-300">Examination Terminated</p>
+            <p className="mt-1 text-sm text-rose-100">
+              You reached {attempt.violations} of {attempt.max_violations} permitted proctoring violations, so
+              your exam was ended and submitted automatically with the answers saved so far. Every violation
+              is recorded for the examination administrator.
+            </p>
+          </div>
+        ) : null}
+        <h1 className="mt-4 text-2xl font-bold text-white">
+          {terminated ? "Examination Ended" : "Examination Submitted Successfully"}
+        </h1>
         <p className="mt-1 text-sm text-slate-400">{attempt.title}</p>
 
         {receipt?.auto_submitted && (
@@ -954,12 +998,14 @@ function ReceiptView({
 }
 
 function ProctorGate({
+  needsSingleScreen,
   needsMedia,
   mediaError,
   onRetryMedia,
   violations,
   maxViolations,
 }: {
+  needsSingleScreen: boolean;
   needsMedia: boolean;
   mediaError: string | null;
   onRetryMedia: () => void;
@@ -971,7 +1017,15 @@ function ProctorGate({
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/20 text-3xl text-rose-300 border border-rose-500/40">
         !
       </div>
-      {needsMedia ? (
+      {needsSingleScreen ? (
+        <>
+          <h2 className="mt-4 text-xl font-semibold text-white">Disconnect Extra Monitors</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            A second display is connected. Unplug or disable every monitor except this one to continue.
+            Your countdown timer is running.
+          </p>
+        </>
+      ) : needsMedia ? (
         <>
           <h2 className="mt-4 text-xl font-semibold text-white">Camera and Microphone Required</h2>
           <p className="mt-2 text-sm text-slate-300">
