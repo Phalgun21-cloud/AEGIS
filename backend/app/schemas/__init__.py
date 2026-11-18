@@ -24,6 +24,7 @@ class UserOut(BaseModel):
     full_name: str
     role: Role
     is_active: bool
+    email_verified: bool
 
 
 class OtpRequest(BaseModel):
