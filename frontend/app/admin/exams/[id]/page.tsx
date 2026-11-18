@@ -9,13 +9,13 @@ import { CandidatesTab } from "@/components/admin/CandidatesTab";
 import { MonitorTab } from "@/components/admin/MonitorTab";
 import { PaperTab } from "@/components/admin/PaperTab";
 import { ResultsTab } from "@/components/admin/ResultsTab";
-import { ScheduleTab } from "@/components/admin/ScheduleTab";
 import { Alert, Badge, Loading, PageHeader, Tabs } from "@/components/ui";
 import { fmtDateTime } from "@/lib/format";
 import type { Exam } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
-type Tab = "schedule" | "blueprint" | "paper" | "candidates" | "monitor" | "results";
+// Title, subject, timing and instructions are set once, when the exam is created.
+type Tab = "blueprint" | "paper" | "candidates" | "monitor" | "results";
 
 const STATUS_HELP: Record<Exam["status"], string> = {
   draft: "Set the blueprint and generate a paper to seal this exam.",
@@ -61,12 +61,10 @@ export default function ExamDetailPage() {
           { id: "blueprint", label: "Blueprint" },
           { id: "paper", label: "AI Paper Generator" },
           { id: "candidates", label: "Candidates" },
-          { id: "schedule", label: "Schedule" },
           { id: "monitor", label: "Live Exam" },
           { id: "results", label: "Results" },
         ]}
       />
-      {tab === "schedule" && <ScheduleTab exam={e} onChange={update} />}
       {tab === "blueprint" && <BlueprintTab exam={e} onChange={update} />}
       {tab === "paper" && <PaperTab exam={e} onChange={update} />}
       {tab === "candidates" && <CandidatesTab exam={e} />}

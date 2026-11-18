@@ -204,6 +204,17 @@ def test_editing_sealed_exam_blueprint_discards_paper(client, world, clock):
     assert r.json()["status"] == "draft" and r.json()["paper_sha256"] is None
 
 
+def test_resending_the_same_subject_keeps_the_sealed_paper(client, world, clock):
+    w = world
+    eid = _ready_exam(client, w, clock)
+    subject = client.get(f"/exams/{eid}", headers=w["admin_h"]).json()["subject"]
+    r = client.patch(
+        f"/exams/{eid}", json={"subject": subject, "title": "Renamed exam"}, headers=w["admin_h"]
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "sealed" and r.json()["paper_sha256"] is not None
+
+
 def test_live_exam_cannot_be_regenerated_or_edited(client, world, clock):
     w = world
     eid = _ready_exam(client, w, clock)

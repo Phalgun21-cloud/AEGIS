@@ -137,7 +137,8 @@ def update_exam(
         raise HTTPException(422, "end_at must be after start_at")
     if end - start > MAX_WINDOW:
         raise HTTPException(422, "the exam window must be at most 7 days")
-    if "subject" in changes:  # the sealed paper was drawn from the old subject
+    # The sealed paper was drawn from the old subject; resending the same subject changes nothing.
+    if "subject" in changes and changes["subject"] != exam.subject:
         _unseal_for_edit(db, exam, admin)
     for k, v in changes.items():
         setattr(exam, k, v)
