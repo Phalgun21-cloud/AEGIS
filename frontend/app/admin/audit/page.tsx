@@ -91,6 +91,9 @@ export default function AuditPage() {
         <Input
           className="max-w-xs"
           placeholder="Filter by action, e.g. paper.released"
+          maxLength={100}
+          pattern="[a-z_.]*"
+          title="Lowercase letters, dots and underscores only"
           value={action}
           onChange={(e) => setAction(e.target.value)}
         />

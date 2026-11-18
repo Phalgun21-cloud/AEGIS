@@ -2,8 +2,10 @@ import asyncio
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import audit, auth, candidate, exams, health, monitor, questions
 from app.api.deps import CSRF_HEADER
@@ -58,6 +60,21 @@ app.add_middleware(
 )
 app.add_middleware(ProxyGuardMiddleware, secret=settings.proxy_secret)
 app.add_middleware(SecurityHeadersMiddleware, hsts=settings.is_production)
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+    # FastAPI's default reply echoes each rejected value back ("input"), which would repeat a
+    # rejected password into responses and proxy logs. Keep only where and why it failed.
+    errors = [
+        {
+            "loc": e.get("loc"),
+            "msg": str(e.get("msg", "")).removeprefix("Value error, "),
+            "type": e.get("type"),
+        }
+        for e in exc.errors()
+    ]
+    return JSONResponse({"detail": errors}, status_code=422)
+
 
 for module in (health, auth, questions, exams, candidate, audit, monitor):
     app.include_router(module.router)

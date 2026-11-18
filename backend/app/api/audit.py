@@ -22,11 +22,11 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 
 @router.get("")
 def list_entries(
-    action: str | None = None,
-    entity_type: str | None = None,
-    entity_id: str | None = None,
-    actor_id: int | None = None,
-    before_id: int | None = Query(default=None, description="Pagination cursor"),
+    action: str | None = Query(default=None, max_length=100, pattern=r"^[a-z_.]+$"),
+    entity_type: str | None = Query(default=None, max_length=100, pattern=r"^[a-z_]+$"),
+    entity_id: str | None = Query(default=None, max_length=100),
+    actor_id: int | None = Query(default=None, gt=0),
+    before_id: int | None = Query(default=None, gt=0, description="Pagination cursor"),
     limit: int = Query(default=50, ge=1, le=500),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),

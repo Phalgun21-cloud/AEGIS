@@ -130,7 +130,7 @@ def test_cookie_writes_need_the_csrf_header(client, make_user):
     _cookie_login(client, make_user(Role.ADMIN))
     body = {
         "email": "x@example.com",
-        "full_name": "X",
+        "full_name": "Xavier Cookie",
         "password": "long-enough-pw",
         "role": "author",
     }
@@ -143,7 +143,7 @@ def test_bearer_clients_dont_need_the_csrf_header(client, make_user, login):
     h = login(make_user(Role.ADMIN))
     body = {
         "email": "y@example.com",
-        "full_name": "Y",
+        "full_name": "Yara Bearer",
         "password": "long-enough-pw",
         "role": "author",
     }
@@ -245,11 +245,11 @@ def test_oversized_passwords_dont_crash(client, make_user, login):
 
 @pytest.mark.parametrize(
     ("password", "status"),
-    [("p" * 9, 422), ("p" * 10, 201), ("p" * 15, 201), ("p" * 16, 422)],
+    [("Pass-word", 422), ("Pass-word1", 201), ("Pass-word1-2345", 201), ("Pass-word1-23456", 422)],
 )
 def test_password_length_limits(client, make_user, login, password, status):
     h = login(make_user(Role.ADMIN))
-    body = {"email": "u@example.com", "full_name": "U", "role": "candidate", "password": password}
+    body = {"email": "u@example.com", "full_name": "Uma Length", "role": "candidate", "password": password}
     assert client.post("/users", json=body, headers=h).status_code == status
 
 

@@ -210,7 +210,7 @@ def test_live_exam_cannot_be_regenerated_or_edited(client, world, clock):
     clock.advance(minutes=61)
     assert client.post(f"/exams/{eid}/generate", headers=w["admin_h"]).status_code == 409
     assert (
-        client.patch(f"/exams/{eid}", json={"title": "x"}, headers=w["admin_h"]).status_code == 409
+        client.patch(f"/exams/{eid}", json={"title": "Renamed exam"}, headers=w["admin_h"]).status_code == 409
     )
 
 

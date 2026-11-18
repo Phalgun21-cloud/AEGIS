@@ -102,6 +102,7 @@ function LoginForm() {
             type="email"
             autoComplete="username"
             placeholder="examiner@university.edu"
+            maxLength={254}
             value={email}
             disabled={busy}
             onChange={(e) => {
@@ -120,6 +121,7 @@ function LoginForm() {
           <PasswordInput
             autoComplete="current-password"
             placeholder="••••••••••••"
+            maxLength={15}
             value={password}
             disabled={busy}
             onChange={(e) => {

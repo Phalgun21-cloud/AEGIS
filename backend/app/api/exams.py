@@ -20,6 +20,9 @@ from app.models import (
     User,
 )
 from app.schemas import (
+    MAX_BLUEPRINT_ROWS,
+    MAX_PAPER_QUESTIONS,
+    MAX_WINDOW,
     BlueprintItemIn,
     EnrollRequest,
     ExamCreate,
@@ -132,6 +135,8 @@ def update_exam(
         raise HTTPException(422, "start_at must be in the future")
     if end <= start:
         raise HTTPException(422, "end_at must be after start_at")
+    if end - start > MAX_WINDOW:
+        raise HTTPException(422, "the exam window must be at most 7 days")
     if "subject" in changes:  # the sealed paper was drawn from the old subject
         _unseal_for_edit(db, exam, admin)
     for k, v in changes.items():
@@ -155,6 +160,13 @@ def set_blueprint(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Exam:
+    if len(items) > MAX_BLUEPRINT_ROWS:
+        raise HTTPException(422, f"A blueprint can have at most {MAX_BLUEPRINT_ROWS} rows")
+    if sum(i.count for i in items) > MAX_PAPER_QUESTIONS:
+        raise HTTPException(422, f"A paper can have at most {MAX_PAPER_QUESTIONS} questions")
+    keys = [(i.topic.casefold(), i.difficulty, i.marks) for i in items]
+    if len(set(keys)) != len(keys):
+        raise HTTPException(422, "Each topic, difficulty and marks combination may appear only once")
     exam = _get(db, exam_id)
     _require_status(exam, ExamStatus.DRAFT, ExamStatus.SEALED)
     _unseal_for_edit(db, exam, admin)

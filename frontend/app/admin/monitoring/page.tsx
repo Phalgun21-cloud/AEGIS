@@ -82,6 +82,7 @@ export default function AdminMonitoringPage() {
             <Input
               type="search"
               placeholder="Filter by candidate or ID…"
+              maxLength={100}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="text-xs"
@@ -206,6 +207,8 @@ export default function AdminMonitoringPage() {
               placeholder="Provide specific details regarding the observed behavior, timestamps, and candidate responses…"
               value={incidentNotes}
               onChange={(e) => setIncidentNotes(e.target.value)}
+              minLength={10}
+              maxLength={1000}
               required
             />
           </Field>

@@ -32,7 +32,20 @@ export const VALIDATION_RULES: Record<string, ValidationRule> = {
   username: { min: 3, max: 30, label: "Username" },
   password: { min: 10, max: 15, label: "Password" }, // bcrypt safety limit (10-15 chars)
   rejection_reason: { min: 5, max: 500, label: "Rejection reason" },
+  review_note: { min: 0, max: 500, label: "Approval note" },
+  explanation: { min: 0, max: 2000, label: "Explanation" },
+  instructions: { min: 0, max: 2000, label: "Candidate instructions" },
+  incident_notes: { min: 10, max: 1000, label: "Invigilator observations" },
 };
+
+// Characters the server refuses: C0 controls (except tab, newline, carriage return), DEL, and the
+// Unicode text-direction overrides that can make text display differently from what is stored.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f‪-‮⁦-⁩]/;
+
+export function hasControlChars(text: string): boolean {
+  return CONTROL_CHARS.test(text);
+}
 
 /**
  * Sanitizes input text: trims leading and trailing whitespace,
@@ -101,6 +114,17 @@ export function validateField(
     return {
       isValid: false,
       error: `${rule.label} cannot exceed ${rule.max} characters (currently ${charCount}).`,
+      sanitized,
+      charCount,
+      min: rule.min,
+      max: rule.max,
+    };
+  }
+
+  if (hasControlChars(rawValue)) {
+    return {
+      isValid: false,
+      error: `${rule.label} contains hidden control or text-direction characters. Please retype it.`,
       sanitized,
       charCount,
       min: rule.min,
@@ -184,6 +208,39 @@ export function validateExamSchedule(
   }
 
   return { isValid: true, error: null };
+}
+
+/**
+ * Validates a new password exactly as the server does. Passwords are never trimmed or
+ * collapsed: every character typed is part of the password.
+ */
+export function validatePassword(password: string, email = "", fullName = ""): string | null {
+  const { min, max } = VALIDATION_RULES.password;
+  if (!password) return "Password is required.";
+  if (password.length < min) return `Password must be at least ${min} characters (currently ${password.length}).`;
+  if (password.length > max) return `Password cannot exceed ${max} characters (currently ${password.length}).`;
+  if (hasControlChars(password) || /[\r\n\t]/.test(password)) {
+    return "Password must not contain control characters or line breaks.";
+  }
+  if (password !== password.trim()) return "Password must not start or end with a space.";
+  if (new Set(password).size < 5) return "Password must use at least 5 different characters.";
+  const lowered = password.toLowerCase();
+  const local = email.trim().toLowerCase().split("@")[0];
+  if (local.length >= 4 && lowered.includes(local)) return "Password must not contain the email address.";
+  if (fullName.trim() && lowered === fullName.trim().toLowerCase().split(/\s+/).join(" ")) {
+    return "Password must not be the user's name.";
+  }
+  return null;
+}
+
+/** Validates a whole number typed into a number field. */
+export function validateInteger(value: unknown, min: number, max: number, label: string): string | null {
+  const text = String(value ?? "").trim();
+  if (text === "") return `${label} is required.`;
+  const n = Number(text);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return `${label} must be a whole number.`;
+  if (n < min || n > max) return `${label} must be between ${min} and ${max}.`;
+  return null;
 }
 
 export type PasswordStrength = {

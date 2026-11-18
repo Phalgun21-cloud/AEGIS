@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Alert, Badge, Button, Card, Field, Input, Select, Textarea, ValidatedInput, ValidatedTextarea } from "@/components/ui";
 import { api, apiBlobUrl, errorMessage } from "@/lib/api";
 import type { Difficulty, Question, QuestionInput, QuestionType } from "@/lib/types";
-import { validateField } from "@/lib/validation";
+import { validateField, validateInteger } from "@/lib/validation";
 
 const EMPTY: QuestionInput = {
   subject: "",
@@ -102,7 +102,8 @@ export function QuestionEditor({ question }: { question?: Question }) {
     const stemVal = validateField("question_text", form.stem, true);
     if (!stemVal.isValid) newErrors.stem = stemVal.error!;
 
-    if (!form.marks || Number(form.marks) <= 0) newErrors.marks = "Marks must be a positive number.";
+    const marksError = validateInteger(form.marks, 1, 100, "Marks");
+    if (marksError) newErrors.marks = marksError;
 
     if (qType === "mcq_single" || qType === "mcq_multiple") {
       if (form.options.length < 2) {

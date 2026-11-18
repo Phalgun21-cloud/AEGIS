@@ -7,7 +7,7 @@ import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Role, User } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
-import { validateField } from "@/lib/validation";
+import { validateField, validatePassword } from "@/lib/validation";
 
 const ROLES: { id: Role; label: string }[] = [
   { id: "admin", label: "Administrator (All Governance & Proctoring)" },
@@ -63,8 +63,8 @@ export default function UsersPage() {
   }
 
   async function handleVerifyOtp() {
-    if (!otpCode.trim()) {
-      setOtpMsg({ kind: "error", text: "Please enter the 6-digit OTP code." });
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setOtpMsg({ kind: "error", text: "Please enter the 6-digit OTP code (numbers only)." });
       return;
     }
     setOtpBusy(true);
@@ -92,8 +92,8 @@ export default function UsersPage() {
     const emailVal = validateField("email", form.email, true);
     if (!emailVal.isValid) errs.email = emailVal.error!;
 
-    const passVal = validateField("password", form.password, true);
-    if (!passVal.isValid) errs.password = passVal.error!;
+    const passError = validatePassword(form.password, form.email, form.full_name);
+    if (passError) errs.password = passError;
 
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -214,7 +214,8 @@ export default function UsersPage() {
                         maxLength={6}
                         placeholder="123456"
                         value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value)}
+                        inputMode="numeric"
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                         className="w-32 text-center tracking-widest font-mono text-sm rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-cyan-200 focus:border-cyan-400 focus:outline-none"
                       />
                       <Button
@@ -241,14 +242,18 @@ export default function UsersPage() {
             <Field
               label="Temporary Password"
               required
-              hint="Must be strictly 10–15 characters."
+              hint="10–15 characters, at least 5 different ones, no leading/trailing spaces, not the email or name."
               error={fieldErrors.password}
             >
               <PasswordInput
                 autoComplete="new-password"
                 placeholder="Password (10-15 chars)"
+                maxLength={15}
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, password: e.target.value });
+                  if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: "" }));
+                }}
               />
             </Field>
 

@@ -69,7 +69,7 @@ def test_draft_edit_submit_reject_resubmit_approve(client, db, make_user, login)
 def test_authors_cannot_touch_each_others_questions(client, make_user, login):
     _, author_h, _, _ = _setup(make_user, login)
     other_h = login(make_user(Role.AUTHOR))
-    qid = client.post("/questions", json=question_body("Mine"), headers=author_h).json()["id"]
+    qid = client.post("/questions", json=question_body("Mine: what is two plus two?"), headers=author_h).json()["id"]
     assert client.get(f"/questions/{qid}", headers=other_h).status_code == 404
     assert client.patch(f"/questions/{qid}", json={"marks": 3}, headers=other_h).status_code == 404
     assert client.post(f"/questions/{qid}/submit", headers=other_h).status_code == 404

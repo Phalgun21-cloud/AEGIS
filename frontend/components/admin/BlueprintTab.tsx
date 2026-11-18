@@ -6,6 +6,7 @@ import { Alert, Button, Card, Input, Select } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import type { BankSummaryRow, BlueprintItem, Difficulty, Exam } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
+import { validateField, validateInteger } from "@/lib/validation";
 
 const DIFFS: Difficulty[] = ["easy", "medium", "hard"];
 
@@ -44,8 +45,23 @@ export function BlueprintTab({ exam, onChange }: { exam: Exam; onChange: (e: Exa
     setRows(rows.map((r, j) => (i === j ? { ...r, ...patch } : r)));
 
   async function save() {
-    setBusy(true);
     setMsg(null);
+    const seen = new Set<string>();
+    for (const [i, r] of rows.entries()) {
+      const n = `Row ${i + 1}: `;
+      const problem =
+        validateField("topic_name", r.topic).error ??
+        validateInteger(r.count, 1, 500, "Questions") ??
+        (r.marks === null ? null : validateInteger(r.marks, 1, 100, "Marks each"));
+      if (problem) return setMsg({ kind: "error", text: n + problem });
+      const key = `${r.topic.trim().toLowerCase()}|${r.difficulty}|${r.marks ?? ""}`;
+      if (seen.has(key)) return setMsg({ kind: "error", text: n + "this topic, difficulty and marks combination is repeated." });
+      seen.add(key);
+    }
+    if (rows.reduce((s, r) => s + r.count, 0) > 1000) {
+      return setMsg({ kind: "error", text: "A paper can have at most 1000 questions." });
+    }
+    setBusy(true);
     try {
       const next = await api<Exam>(`/exams/${exam.id}/blueprint`, {
         method: "PUT",
@@ -95,6 +111,7 @@ export function BlueprintTab({ exam, onChange }: { exam: Exam; onChange: (e: Exa
                 className="col-span-2 md:col-span-4"
                 list="topics"
                 placeholder="Topic"
+                maxLength={80}
                 disabled={!editable}
                 value={r.topic}
                 onChange={(e) => set(i, { topic: e.target.value })}

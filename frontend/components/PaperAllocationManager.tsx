@@ -19,6 +19,7 @@ import {
   calculateTotalMarks,
   validateQuestionAddition,
 } from "@/lib/marking";
+import { validateField } from "@/lib/validation";
 import type { PaperQuestion, QuestionType } from "@/lib/types";
 
 export function PaperAllocationManager({
@@ -63,8 +64,8 @@ export function PaperAllocationManager({
     setSuccess(null);
     const parsed = Number(rawValue);
 
-    if (Number.isNaN(parsed) || parsed < 0) {
-      setError("Marks must be a non-negative number.");
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      setError("Marks must be a whole number from 1 to 100.");
       return;
     }
 
@@ -118,8 +119,13 @@ export function PaperAllocationManager({
     setError(null);
     setSuccess(null);
 
-    if (!newStem.trim()) {
-      setError("Question stem cannot be empty.");
+    const stemCheck = validateField("question_text", newStem);
+    if (!stemCheck.isValid) {
+      setError(stemCheck.error);
+      return;
+    }
+    if (!Number.isInteger(newMarks) || newMarks < 1) {
+      setError("Question marks must be a whole number of at least 1.");
       return;
     }
 

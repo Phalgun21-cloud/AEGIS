@@ -8,6 +8,7 @@ import { api, apiBlobUrl, errorMessage } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 import type { Question, SimilarQuestion } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
+import { validateField } from "@/lib/validation";
 
 type ReviewerView = "queue" | "paper_review";
 
@@ -121,8 +122,9 @@ function ReviewPanel({ question: q, onDone }: { question: Question; onDone: (msg
   }, [q.id, q.has_image]);
 
   async function decide(kind: "approve" | "reject") {
-    if (kind === "reject" && feedback.trim().length < 5) {
-      setFeedbackError("Please provide at least 5 characters of constructive revision feedback.");
+    const check = validateField(kind === "reject" ? "rejection_reason" : "review_note", feedback, kind === "reject");
+    if (!check.isValid) {
+      setFeedbackError(check.error);
       return;
     }
     setFeedbackError(null);
@@ -277,6 +279,7 @@ function ReviewPanel({ question: q, onDone }: { question: Question; onDone: (msg
           <Textarea
             rows={3}
             placeholder="Explain required adjustments or approval notes…"
+            maxLength={500}
             value={feedback}
             onChange={(e) => {
               setFeedback(e.target.value);

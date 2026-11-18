@@ -6,6 +6,7 @@ import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { fromLocalInput, parseUtc, toLocalInput } from "@/lib/format";
 import type { Exam } from "@/lib/types";
+import { validateField, validateInteger } from "@/lib/validation";
 
 export function ScheduleTab({ exam, onChange }: { exam: Exam; onChange: (e: Exam) => void }) {
   const editable = exam.status === "draft" || exam.status === "sealed";
@@ -22,8 +23,29 @@ export function ScheduleTab({ exam, onChange }: { exam: Exam; onChange: (e: Exam
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setMsg(null);
+    const start = new Date(form.start_at).getTime();
+    const end = new Date(form.end_at).getTime();
+    const problem =
+      [
+        validateField("exam_title", form.title).error,
+        validateField("subject_name", form.subject).error,
+        validateField("instructions", form.instructions, false).error,
+        validateInteger(form.duration_minutes, 1, 24 * 60, "Duration"),
+        !form.start_at || !form.end_at || Number.isNaN(start) || Number.isNaN(end)
+          ? "Start and end date/time are required."
+          : null,
+        end <= start ? "The end must be after the start." : null,
+        end - start > 7 * 24 * 60 * 60 * 1000 ? "The exam window must be at most 7 days." : null,
+        (end - start) / 60000 < form.duration_minutes
+          ? "The window must be at least as long as the duration."
+          : null,
+      ].find(Boolean) ?? null;
+    if (problem) {
+      setMsg({ kind: "error", text: problem });
+      return;
+    }
+    setBusy(true);
     try {
       const next = await api<Exam>(`/exams/${exam.id}`, {
         method: "PATCH",
@@ -52,10 +74,10 @@ export function ScheduleTab({ exam, onChange }: { exam: Exam; onChange: (e: Exam
     <Card>
       <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
         <Field label="Title">
-          <Input disabled={!editable} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <Input disabled={!editable} maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </Field>
         <Field label="Subject" hint={exam.status === "sealed" ? "Changing this discards the sealed paper." : undefined}>
-          <Input disabled={!editable} value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
+          <Input disabled={!editable} maxLength={80} value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
         </Field>
         <Field label="Release (start)">
           <Input
@@ -85,6 +107,7 @@ export function ScheduleTab({ exam, onChange }: { exam: Exam; onChange: (e: Exam
         <div className="md:col-span-2">
           <Field label="Candidate instructions">
             <Textarea
+              maxLength={2000}
               disabled={!editable}
               value={form.instructions}
               onChange={(e) => setForm({ ...form, instructions: e.target.value })}
